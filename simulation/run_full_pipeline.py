@@ -15,7 +15,7 @@ from slice_mass_feedback import run_mass_feedback_loop
 
 def run_pipeline():
     print("\n==================================================")
-    print("      ggROVER AUTOMATED WORKFLOW PIPELINE DEMO     ")
+    print("      ggGRIDRUNNER AUTOMATED WORKFLOW PIPELINE DEMO     ")
     print("==================================================\n")
     
     # Stage 1: Onshape REST API Query

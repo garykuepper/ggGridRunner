@@ -15,7 +15,7 @@ def generate_linkage_animation(L=220.0, W=240.0, r_arm=22.0, r_horn=20.0, L_rod=
     print("==================================================")
     
     fig, ax = plt.subplots(figsize=(8, 8), dpi=100)
-    ax.set_title("ggRover 4-Bar Steering Linkage Mechanical Motion", fontsize=12, fontweight='bold')
+    ax.set_title("ggGridRunner 4-Bar Steering Linkage Mechanical Motion", fontsize=12, fontweight='bold')
     ax.set_xlabel("Chassis Width X (mm)")
     ax.set_ylabel("Chassis Length Y (mm)")
     ax.grid(True, linestyle="--", alpha=0.6)

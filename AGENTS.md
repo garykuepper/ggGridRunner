@@ -4,7 +4,7 @@ This file provides guidance and project context for AI agents working with code 
 
 ## Project Overview
 
-The **ggRover** project is a modular, object-oriented C++ monorepo consisting of two main firmware components that communicate over an XBee serial radio link using a custom binary-safe protocol:
+The **ggGridRunner** project is a modular, object-oriented C++ monorepo consisting of two main firmware components that communicate over an XBee serial radio link using a custom binary-safe protocol:
 
 - **Rover (`rover-firmware/`)**: Targets an **STM32F103C8 ("Blue Pill", ARM Cortex-M3)**. Responsible for motor control (PWM), sensor data collection (MPU-9250 IMU, VL53L0X ToF, BME280 Environment), and broadcasting telemetry at 10Hz.
 - **Controller (`controller-firmware/`)**: Targets an **Arduino Pro Micro (ATmega32U4, 8MHz)**. Interfaces with a PS4 DualShock 4 gamepad (via Hobbytronics USB Host adapter over I2C) and displays real-time telemetry on an SSD1306 OLED dashboard. Sends control commands at 20Hz.

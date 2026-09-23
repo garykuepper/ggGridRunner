@@ -1,4 +1,4 @@
-# ggRover Pinouts
+# ggGridRunner Pinouts
 
 Single source of truth for every electrical connection on both MCUs. Update this doc **in the same commit** as any firmware change that adds, moves, or repurposes a pin.
 

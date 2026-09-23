@@ -1,5 +1,5 @@
 """
-Onshape REST API Client Prototype Test for ggRover
+Onshape REST API Client Prototype Test for ggGridRunner
 Connects using stored environment credentials and queries document/workspace metadata.
 """
 

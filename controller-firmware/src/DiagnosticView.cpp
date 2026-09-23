@@ -39,7 +39,7 @@ bool DiagnosticView::begin() {
 void DiagnosticView::showBoot(const char* msg) {
   _display.clearDisplay();
   _display.setCursor(0, 0);
-  _display.println(F("ggRover ctrl"));
+  _display.println(F("GridRunner ctrl"));
   _display.println(msg);
   _display.display();
 }

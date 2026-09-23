@@ -1,6 +1,6 @@
-# ggRover Automated Engineering Workflow & Architecture Master Guide
+# ggGridRunner Automated Engineering Workflow & Architecture Master Guide
 
-This document specifies the end-to-end automated engineering workflow and physical architecture for **ggRover**. It details the journey from cloud-native parametric CAD in **Onshape**, through symbolic kinematics (**Rumoca** + **CasADi**), 3D physics simulation (**Webots**), to headless slicing (**PrusaSlicer CLI**) and wireless print deployment (**OctoPi + LulzBot Mini**).
+This document specifies the end-to-end automated engineering workflow and physical architecture for **ggGridRunner**. It details the journey from cloud-native parametric CAD in **Onshape**, through symbolic kinematics (**Rumoca** + **CasADi**), 3D physics simulation (**Webots**), to headless slicing (**PrusaSlicer CLI**) and wireless print deployment (**OctoPi + LulzBot Mini**).
 
 This guide also serves as a reusable template and workflow blueprint for future automated robotics and hardware projects.
 
@@ -154,7 +154,7 @@ Using the local FreeCAD MCP server, the AI Agent can:
 | **Output** | Flattened state equations $\dot{x} = f(x, u)$ & zero-dependency C++ code. | Optimal control trajectories and feedback gains. |
 
 ### Modelica & C++ SIL Header Generation
-1. **Physical Equations (`ggRover_physics.mo`):** Defines 4-wheel rotational speeds $(w_{FL}, w_{FR}, w_{RL}, w_{RR})$, friction scrub coefficients $\mu(\omega)$, motor back-EMF, and steering angles $\delta_i$.
+1. **Physical Equations (`ggGridRunner_physics.mo`):** Defines 4-wheel rotational speeds $(w_{FL}, w_{FR}, w_{RL}, w_{RR})$, friction scrub coefficients $\mu(\omega)$, motor back-EMF, and steering angles $\delta_i$.
 2. **Rumoca C++ Export:** Compiles `.mo` into lightweight C++ structs representing system dynamics.
 3. **Desktop Unit Testing:** The generated headers are included directly in PlatformIO `native` desktop unit tests (`test/test_odometry.cpp`) to verify `Odometry.cpp` dead-reckoning logic against simulated wheel slip without requiring physical hardware.
 
@@ -209,5 +209,5 @@ curl -H "X-Api-Key: YOUR_OCTOPRINT_API_KEY" \
 
 ### Reusability Blueprint
 This architecture is modular and directly adaptable to future robotics projects:
-- Replace `ggRover_physics.mo` with robotic arm or quadrupeds physics equations.
+- Replace `ggGridRunner_physics.mo` with robotic arm or quadrupeds physics equations.
 - Maintain the same Onshape REST API, Rumoca $\rightarrow$ CasADi, Webots, and PrusaSlicer CLI pipeline for any physical hardware build.

@@ -1,6 +1,6 @@
-# ggRover Research Documentation Index
+# ggGridRunner Research Documentation Index
 
-This directory contains research specifications, architecture blueprints, and workflow automation guides for the **ggRover** semi-autonomous hardware and simulation ecosystem.
+This directory contains research specifications, architecture blueprints, and workflow automation guides for the **ggGridRunner** semi-autonomous hardware and simulation ecosystem.
 
 ## Master Guides
 

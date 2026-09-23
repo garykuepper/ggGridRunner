@@ -1,4 +1,4 @@
-# ggRover: Semi-Autonomous Rover System
+# ggGridRunner: Semi-Autonomous Rover System
 
 A modular, object-oriented C++ monorepo for a dual-hardware rover system using PlatformIO.
 
@@ -30,7 +30,7 @@ The handheld interface for pilot control and telemetry visualization.
 
 ## Project Structure
 ```text
-/ggRover
+/ggGridRunner
 ├── shared/                  # Binary-safe communication protocols
 │   └── Protocol.h           # Shared Control/Telemetry packets
 ├── rover-firmware/          # STM32 low-level firmware

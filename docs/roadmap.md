@@ -1,4 +1,4 @@
-# ggRover Development Roadmap
+# ggGridRunner Development Roadmap
 
 This document outlines the phased development strategy for the Semi-Autonomous Rover System.
 Each phase includes a table of tasks organized by firmware target, class, and detail.

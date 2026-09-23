@@ -1,4 +1,4 @@
-# ggRover Project Review & Action Plan
+# ggGridRunner Project Review & Action Plan
 
 **Review Date:** 2026-06-08
 **Reviewer:** Hermes Agent

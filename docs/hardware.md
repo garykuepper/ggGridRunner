@@ -1,4 +1,4 @@
-# ggRover — Hardware Specification Sheet
+# ggGridRunner — Hardware Specification Sheet
 
 Source of truth for **what hardware exists, what it's rated for, and how it's configured**. Pair with [docs/pinouts.md](docs/pinouts.md) (the source of truth for *where each piece is wired*).
 

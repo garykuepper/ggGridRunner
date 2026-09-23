@@ -13,7 +13,7 @@ def generate_linkage_plots(L=220.0, W=240.0, r_arm=22.0, r_horn=20.0, L_rod=53.8
     print("==================================================")
     
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6), dpi=120)
-    fig.suptitle("ggRover 4-Bar Steering Linkage & Ackermann Geometry Sweep", fontsize=14, fontweight='bold')
+    fig.suptitle("ggGridRunner 4-Bar Steering Linkage & Ackermann Geometry Sweep", fontsize=14, fontweight='bold')
     
     # 1. Plot Steering Linkage Vector Geometry
     ax1.set_title("Steering Linkage Joint Kinematics (Top View)", fontsize=12)
