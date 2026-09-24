@@ -24,15 +24,15 @@ Cross-project sequencing and the gate this opens for ggSkybit live in the
 [ggSkyGrid plan](https://github.com/garykuepper/ggSkyGrid/blob/main/PLAN.md).
 A milestone is done when its clip exists.
 
-| # | Milestone | Needs chassis | Effort | Weeks | Done when | Clip | Covers |
+| Order | Milestone | Needs chassis | Effort | Weeks | Done when | Clip | Covers |
 |---|-----------|---------------|--------|-------|-----------|------|--------|
-| R1 | It moves | No | 12–20 h | 3–4 | Blue Pill flashed; motors spin forward and reverse with correct throttle scaling, wheels in the air | Scripted wheel pattern | Phase 1 `Drivetrain` |
-| R2 | Safe link | No | 20–30 h | 4–6 | PS4 → XBee → motors respond; framed, CRC-checked packets; dead-man's switch; OLED telemetry; real battery voltage | Kill the remote: wheels stop | Phase 1 `PS4Interface`, `Dashboard`; Phase 2 |
-| C1 | Suspension and chassis | n/a | 30–50 h + print time | 6–10 | Suspension designed properly, printed and assembled. Runs in parallel with R1–R2 | Print time-lapse; articulation test | CAD ([hardware.md](hardware.md)) |
-| R3 | It drives | Yes | 5–10 h | 1–2 | Electronics installed; driven around on the remote; link timing holds under load | Driving around the house | Phase 2 XBee timing |
-| R4 | Heading hold (stretch) | Yes | 15–25 h | 3–5 | Encoders plus IMU hold a straight line | Stays straight when pushed | Phase 1 `Odometry`; Phase 3 `HeadingSystem`; Phase 4 PID heading hold |
+| 1 | Motors spin | No | 12–20 h | 3–4 | Blue Pill flashed; motors spin forward and reverse with correct throttle scaling, wheels in the air | Scripted wheel pattern | Phase 1 `Drivetrain` |
+| 2 | Safe remote link | No | 20–30 h | 4–6 | PS4 → XBee → motors respond; framed, CRC-checked packets; dead-man's switch; OLED telemetry; real battery voltage | Kill the remote: wheels stop | Phase 1 `PS4Interface`, `Dashboard`; Phase 2 |
+| ‖ | Chassis build | n/a | 30–50 h + print time | 6–10 | Suspension designed properly, printed and assembled. Runs in parallel with the two above | Print time-lapse; articulation test | CAD ([hardware.md](hardware.md)) |
+| 3 | Drives on remote | Yes | 5–10 h | 1–2 | Electronics installed; driven around on the remote; link timing holds under load | Driving around the house | Phase 2 XBee timing |
+| 4 | Heading hold (stretch) | Yes | 15–25 h | 3–5 | Encoders plus IMU hold a straight line | Stays straight when pushed | Phase 1 `Odometry`; Phase 3 `HeadingSystem`; Phase 4 PID heading hold |
 
-To R3: ~67–110 h, about 4–5 months. R3 opens the ggSkybit gate.
+To Drives on remote: ~67–110 h, about 4–5 months. Reaching it opens the ggSkybit gate.
 
 ---
 
