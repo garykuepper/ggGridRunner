@@ -40,6 +40,7 @@ a LulzBot Mini.
 | Battery | 4S4P 18650, 144 × 65 × 36 mm (two layers of 8 cells) | in hand |
 | Steering servos | **MG996R** (in hand). MG90S also in hand but not used | in hand |
 | Reference | the user's orange printed prototype corner (photos, 2026-09-25) | in hand |
+| Joints | **no ball joints** (hard to print); pins in nylon bushings only | user preference |
 
 From these, the gearbox face sits **11 mm inside the hub pocket**, and 50 mm of motor sticks out
 past the wheel's inner face.
@@ -126,9 +127,10 @@ These are in git history:
 | Part | Proposal | Why |
 |---|---|---|
 | Kingpin pivots | Vertical pins through the prong ends into bosses on the knuckle plate, in flanged nylon bushings, 56 mm apart | Nylon bushings (user's preference), with wide spacing |
-| Arm hinges | Fore-aft pins in nylon bushings at both ends of each arm | No ball joints needed now |
+| Arm hinges | Fore-aft pins in nylon bushings at both ends of each arm | Hinges, not ball joints |
+| Shock | Standard eyes on pins | Off the shelf |
 | Upright | One printed C per corner: prongs 8 × 10 mm, back 8 × 24 mm | Must stay inside the 81 mm pocket at ±50° (2.1 mm margin) |
-| Steering | MG996R on the upright, metal 25T horn, M3 ball link | 1:1 parallelogram, no bump steer |
+| Steering | MG996R on the upright, metal 25T horn, flat link with a vertical pin in a nylon bushing at each end | The servo and knuckle ride on the same upright, so the link only swings in a horizontal plane and plain pins work. 1:1 parallelogram, no bump steer |
 | Steering stops | Printed hard stops at ±52° | Protect the servo, link and wiring |
 | Motor wiring | Service loop near the kingpin axis, then along the lower arm | Near the axis, ±50° only twists the wire instead of pulling it |
 
