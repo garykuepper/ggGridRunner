@@ -1,12 +1,12 @@
 """Shared ggGridRunner chassis and corner geometry (mm) for the layout drawings.
 
-Corner (study 05): a knuckle plate bolts to the gearbox face inside the wheel's hub pocket and
-steers on a vertical kingpin held by a separate UPRIGHT. The upright is a C: two prongs reach
-into the pocket above and below the motor to the kingpin pivots, joined by a back that sits
-outside the motor's steering sweep. The suspension arms hinge on the upright's back; the MG996R
-rides on the upright and steers the knuckle through a short 1:1 parallelogram link. The motor,
-wheel, upright and servo move together through the travel, so only steering changes the gaps
-between them.
+Corner (study 07): the knuckle plate bolts to the gearbox face inside the wheel's hub pocket.
+Each boomerang arm ends in a single stem with a fore-aft hinge pin into a small KINGPIN BLOCK;
+a vertical kingpin pin joins the block to the knuckle (two plain pins = a pin universal joint,
+no ball joints). Only the knuckle, motor, wheel and the two blocks move with the wheel.
+The MG996R sits on the chassis spine, between the upper and lower arm pivots, and steers the
+knuckle through a tie rod as long as the arms and parallel to them (1:1 parallelogram, ~zero
+bump steer). The tie rod ends are pin universals too.
 
 Local corner frame: origin on the kingpin at ground level, +x inboard ("a"), +y fore-aft
 (outward), +z up. Rover frame on the sheets: +X forward, +Y left, +Z up.
@@ -23,45 +23,49 @@ MOTOR_D = 25.0
 
 # ---- layout -----------------------------------------------------------------
 WB = 230.0                      # wheelbase (kingpin c-c fore-aft)
-STEER = 50.0                    # mechanical steering clearance, deg
+STEER = 46.0                    # mechanical steering clearance, deg (±45 commanded, stops ±47)
 BUMP, DROOP = 15.0, 10.0        # wheel travel from ride height (25 total)
-
-# ---- upright (moves with the suspension, does not steer) ----------------------
 AXLE = TIRE_D / 2
-KP_R = 28.0                     # kingpin pivots this far above / below the axle
-KP_UP_Z, KP_LO_Z = AXLE + KP_R, AXLE - KP_R
-PRONG_T, PRONG_W = 8.0, 10.0    # prong section: height x width
-TAIL_R = float(np.hypot(MOTOR_BODY, MOTOR_D / 2))   # motor tail swing radius
-UPR_BACK = (float(np.ceil(TAIL_R + 4)), float(np.ceil(TAIL_R + 4)) + 8.0)  # back, along a
-UPR_BACK_W = 12.0               # back half-width, fore-aft
-UPR_Z = (KP_LO_Z - PRONG_T / 2, KP_UP_Z + PRONG_T / 2)  # upright bottom / top
-PRONG_LO_Z = (KP_LO_Z - PRONG_T / 2, KP_LO_Z + PRONG_T / 2)
-PRONG_UP_Z = (KP_UP_Z - PRONG_T / 2, KP_UP_Z + PRONG_T / 2)
 
-# ---- steering: MG996R on the upright, 1:1 parallelogram link -------------------
-SERVO_A = 48.0                  # servo output shaft, inboard of the kingpin
-SERVO_BOX = ((SERVO_A - 10, SERVO_A + 30.7), (-10.0, 10.0),
-             (UPR_Z[1] + 1, UPR_Z[1] + 38))            # body sits on the top prong
-HORN_Z = 78.0                   # horn / link height: between motor top and top prong
-STEER_ARM = 15.0                # knuckle steering arm = servo horn, pointing fore-aft
-LINK_HALF = 2.0
+# ---- kingpin blocks on the knuckle (move with the wheel) -----------------------
+KP_UP_Z, KP_LO_Z = 86.0, 32.0   # upper / lower kingpin block: arm hinge + kingpin pin
+BLOCK = 10.0                    # block size (cube edge)
 
-# ---- arms (straight, parallel, equal; hinge on the upright back) ----------------
-HINGE_A = UPR_BACK[1] + 3       # outer hinge axis, inboard of the kingpin
-LO_H_Z, UP_H_Z = 38.0, 82.0     # outer hinge heights on the upright back
-ARM = 50.0                      # hinge to chassis pivot, along x
-RISE = 20.0                     # chassis pivots sit this much above the outer hinges:
-                                # the chassis rides higher and the wheels hang lower
-PIVOT = 15.0                    # chassis pivots from the centreline
-ARM_W_OUT, ARM_W_IN = 10.0, 20.0  # half-width of the arm frame at the upright / chassis
-ARM_HALF = 4.0                  # arm rail half-thickness
-PIV_BOSS = 5.0
+# ---- arms: boomerangs with a single stem at the knuckle ------------------------
+ARM = 95.0                      # stem hinge to chassis pivot, along x
+PIVOT = 35.0                    # chassis pivots (arms, servo) from the centreline
+RISE = 15.0                     # chassis pivots sit this much above the knuckle hinges
+                                # (= BUMP, so the tie rod never closes on the motor)
+STEM = 35.0                     # single stem from the knuckle, then the legs split
+LO_SPREAD, UP_SPREAD = 20.0, 22.0  # half-spread of the legs at the chassis pivots
+ARM_HALF = 3.5                  # arm section half-size (7 mm where it passes the pocket rim)
+# Boomerang shapes: (distance inboard from the kingpin, height above the knuckle hinge).
+# Upper climbs gently from the knuckle (it must stay inside the hub pocket until it is out of
+# the wheel) and then runs flat; lower runs flat under the motor and climbs past its tail.
+BEND_UP, BEND_LO = 76.0, 66.0
+SHAPES = {
+    "upper": ([0.0, BEND_UP, ARM], [0.0, RISE, RISE]),
+    "lower": ([0.0, BEND_LO, ARM], [0.0, 0.0, RISE]),
+    "tie rod": ([0.0, ARM], [0.0, RISE]),
+}
 
-# ---- shock: lower arm to a central tower -------------------------------------
-SHOCK_ON_ARM = 10.0             # mount on the lower arm, this far in from the outer hinge
+# ---- steering: MG996R on the spine, tie rod parallel to the arms ----------------
+TR_Z = 78.0                     # tie rod knuckle end (steering arm on the knuckle)
+STEER_ARM = 12.0                # knuckle steering arm = servo horn, pointing fore-aft
+TR_HALF = 2.0
+HORN_Z = TR_Z + RISE            # horn on top of the servo, on the spine
+SERVO_STANDOFF = 12.0           # horn above the servo body top, so the tie rod clears it
+# Body lies along the arm, output 10 mm from its outboard end, between the leg pivots.
+SERVO_BOX = ((ARM - 10, ARM + 30.7), (-10.0, 10.0),
+             (HORN_Z - SERVO_STANDOFF - 37, HORN_Z - SERVO_STANDOFF))  # body, local
+
+# ---- shock: upper arm to a central tower -------------------------------------
+SHOCK_AT = 40.0                 # mount on the upper arm, this far in from the knuckle
+SHOCK_EYE_UP = 10.0             # lower eye sits on a boss this far above the arm centreline
 SHOCK_LEN = 100.0               # eye to eye at ride height
 SHOCK_R = 5.0
 TOWER_X = 10.0                  # tower top mount, from centreline
+PIV_BOSS = 5.0
 
 # ---- battery / print ----------------------------------------------------------
 BAT_L, BAT_W, BAT_Z = 144.0, 65.0, 36.0   # 4S4P brick: two layers of 8 cells along BAT_L
@@ -69,17 +73,25 @@ BAT_X, BAT_Y = BAT_W, BAT_L     # plan size: long side fore-aft
 ENV = 140.0                     # print envelope, per part
 
 # ---- derived ------------------------------------------------------------------
-KP_X = PIVOT + ARM + HINGE_A    # kingpin from centreline; kingpin = gearbox face
+KP_X = PIVOT + ARM              # kingpin from centreline; kingpin = gearbox face
 TIRE_IN = HEX_IN - GBX_FACE     # wheel inner face, inboard of the kingpin
 TIRE_OUT = TIRE_IN - TIRE_W
 SCRUB = -(TIRE_IN + TIRE_OUT) / 2  # kingpin -> tire centre
 T = 2 * (KP_X + SCRUB)          # track, tire c-c
 HEX_X = -GBX_FACE
 TAIL_X = MOTOR_BODY
+TAIL_R = float(np.hypot(MOTOR_BODY, MOTOR_D / 2))
 POCKET_BOTTOM = TIRE_IN - HEX_IN   # = HEX_X: the wheel web
-BELLY = LO_H_Z + RISE - 8       # spine underside near the lower pivots
-_SH_LO = np.array([KP_X - HINGE_A - SHOCK_ON_ARM, LO_H_Z + RISE * SHOCK_ON_ARM / ARM])
-SHOCK_TOP_Z = float(_SH_LO[1] + np.sqrt(SHOCK_LEN ** 2 - (_SH_LO[0] - TOWER_X) ** 2))
+BELLY = KP_LO_Z + RISE - 8      # spine underside near the lower pivots
+
+
+def shape(a, name):
+    """Height of a link above its knuckle hinge at distance a (inboard) from the kingpin."""
+    return np.interp(a, *SHAPES[name])
+
+
+SHOCK_LO = np.array([KP_X - SHOCK_AT, KP_UP_Z + float(shape(SHOCK_AT, "upper")) + SHOCK_EYE_UP])
+SHOCK_TOP_Z = float(SHOCK_LO[1] + np.sqrt(SHOCK_LEN ** 2 - (SHOCK_LO[0] - TOWER_X) ** 2))
 
 
 def rect(x0, x1, y0, y1):

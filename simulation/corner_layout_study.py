@@ -1,10 +1,12 @@
-"""ggGridRunner corner & chassis layout study (study 05): plan + front elevation.
+"""ggGridRunner corner & chassis layout study (study 07): plan + front elevation.
 
-Corner with a separate upright: the knuckle plate bolts to the gearbox face inside the hub
-pocket and steers on a kingpin held by a C-shaped upright (prongs above and below the motor,
-back outside the motor's sweep). Straight parallel arms hinge on the upright's back; the MG996R
-rides on the upright and steers the knuckle through a 1:1 parallelogram link. See
-rover_geometry.py for the numbers and suspension_travel_study.py for the 3D clearance check.
+Corner with boomerang arms and a chassis servo: the knuckle plate bolts to the gearbox face
+inside the hub pocket. Each arm ends in a single stem hinged (fore-aft pin) to a small kingpin
+block; a vertical kingpin pin joins each block to the knuckle, so there are no ball joints.
+Only the knuckle, motor, wheel and two blocks move with the wheel. The MG996R sits on the spine
+between the arm pivots and steers through a tie rod parallel to the arms (1:1 parallelogram).
+See rover_geometry.py for the numbers and suspension_travel_study.py for the 3D clearance
+check.
 
 Draws the +/-STEER sweep of each corner, solves the spin-in-place angle (the contact point
 swings about the kingpin by the scrub offset), and reports plan clearances.
@@ -29,9 +31,8 @@ MOTOR = rect(TIRE_IN, TAIL_X, -MOTOR_D / 2, MOTOR_D / 2)       # visible part
 MOTOR_HID = rect(0, TIRE_IN, -MOTOR_D / 2, MOTOR_D / 2)
 COUPLER = rect(HEX_X, 0, -6, 6)
 PLATE = rect(-5, 0, -22, 22)                                   # knuckle plate (steers)
-PRONG = rect(0, UPR_BACK[0], -PRONG_W / 2, PRONG_W / 2)       # upright prongs (plan)
-BACK = rect(UPR_BACK[0], UPR_BACK[1], -UPR_BACK_W, UPR_BACK_W)
-SERVO = rect(*SERVO_BOX[0], *SERVO_BOX[1])
+BLOCK_SQ = rect(-BLOCK / 2, BLOCK / 2, -BLOCK / 2, BLOCK / 2)  # kingpin blocks (plan)
+SERVO = rect(*SERVO_BOX[0], *SERVO_BOX[1])                      # MG996R on the spine
 
 
 def place(poly, kx, ky, ang, mirror_x, mirror_y=False):
@@ -79,8 +80,8 @@ def clearances():
     for ang in np.linspace(-STEER, STEER, 401):
         q = place(tire_mot, -KP_X, WB / 2, ang, False)
         bat = min(bat, rect_gap(q, bat_poly))
-        m = place(edge_points(MOTOR), 0, 0, ang, False)   # upright is fixed in this frame
-        back = min(back, rect_gap(m, BACK))
+        m = place(edge_points(MOTOR), 0, 0, ang, False)   # servo is fixed in this frame
+        back = min(back, rect_gap(m, SERVO))
     front = np.vstack([place(edge_points(TIRE), -KP_X, WB / 2, a, False)
                        for a in np.linspace(-STEER, STEER, 81)])
     return bat, back, 2 * front[:, 1].min()
@@ -88,7 +89,7 @@ def clearances():
 
 SPIN, SPIN_CP = spin_angle()
 CLEAR, BACK_CLEAR, FA_GAP = clearances()
-PIV_GAP = WB / 2 - ARM_W_IN - PIV_BOSS - BAT_Y / 2
+PIV_GAP = WB / 2 - LO_SPREAD - PIV_BOSS - BAT_Y / 2
 MOD_Y0 = BAT_Y / 2 + 4
 
 fig = plt.figure(figsize=(17, 11), dpi=200, facecolor=PAPER)
@@ -132,15 +133,12 @@ for sx in (-1, 1):
     for sy in (-1, 1):
         kx, ky, mx, my = sx * KP_X, sy * WB / 2, sx > 0, sy < 0
         P = lambda poly, ang=0.0: place(poly, kx, ky, ang, mx, my)
-        # arms: two rails each, upright hinge -> chassis pivots
-        for d in (-1, 1):
-            seg = P([[HINGE_A, d * ARM_W_OUT], [HINGE_A + ARM, d * ARM_W_IN]])
-            ax.plot(seg[:, 0], seg[:, 1], lw=MED, c=STEEL)
-            ax.add_patch(Circle(seg[1], 2.2, fc=PAPER, ec=STEEL, lw=THIN, zorder=5))
-        for a_ in (HINGE_A, HINGE_A + ARM):
-            w = ARM_W_OUT if a_ == HINGE_A else ARM_W_IN
-            seg = P([[a_, -w], [a_, w]])
-            ax.plot(seg[:, 0], seg[:, 1], lw=HAIR, c=STEEL, ls=(0, (3, 1.5)))
+        # arms: single stem from the kingpin block, then two legs to the chassis pivots
+        for spread, lw in ((LO_SPREAD, MED), (UP_SPREAD, THIN)):
+            for d in (-1, 1):
+                seg = P([[0, 0], [STEM, 0], [ARM, d * spread]])
+                ax.plot(seg[:, 0], seg[:, 1], lw=lw, c=STEEL)
+                ax.add_patch(Circle(seg[2], 2.2, fc=PAPER, ec=STEEL, lw=THIN, zorder=5))
         # sweeps
         for ang in np.arange(-STEER, STEER + 0.01, 2.5):
             for p in (TIRE, MOTOR):
@@ -155,13 +153,11 @@ for sx in (-1, 1):
             ax.add_patch(Polygon(P(p), fc="none", ec=PAPER, lw=HAIR, ls=(0, (2, 1.5))))
         ax.add_patch(Polygon(P(PLATE), fc=VERM, alpha=0.5, ec=VERM, lw=THIN, zorder=4))
         ax.add_patch(Polygon(P(MOTOR), fc=PAPER, ec=INK, lw=MED))
-        # upright (prongs + back) and servo on it
-        ax.add_patch(Polygon(P(PRONG), fc=STEEL, alpha=0.35, ec=STEEL, lw=THIN, zorder=5))
-        ax.add_patch(Polygon(P(BACK), fc=STEEL, alpha=0.55, ec=STEEL, lw=THIN, zorder=5))
-        ax.add_patch(Polygon(P(SERVO), fc="none", ec=STEEL, lw=THIN, ls=(0, (3, 1.5)),
-                             zorder=6))
-        # steering link: knuckle arm -> link -> horn
-        link = P([[0, 0], [0, STEER_ARM], [SERVO_A, STEER_ARM], [SERVO_A, 0]])
+        # kingpin block, servo on the spine
+        ax.add_patch(Polygon(P(BLOCK_SQ), fc=STEEL, alpha=0.55, ec=STEEL, lw=THIN, zorder=6))
+        ax.add_patch(Polygon(P(SERVO), fc=STEEL, alpha=0.12, ec=STEEL, lw=THIN, zorder=3))
+        # steering: knuckle arm -> tie rod -> horn
+        link = P([[0, 0], [0, STEER_ARM], [ARM, STEER_ARM], [ARM, 0]])
         ax.plot(link[:, 0], link[:, 1], lw=THIN, c=VERM, zorder=7)
         for q in link[1:3]:
             ax.add_patch(Circle(q, 1.8, fc=PAPER, ec=VERM, lw=THIN, zorder=8))
@@ -200,7 +196,7 @@ dim(ax, -WB / 2, WB / 2, -226, f"WHEELBASE {WB:.0f}", horiz=False)
 dim(ax, -ENV / 2, ENV / 2, -200, f"≤ {ENV:.0f} PRINT ENVELOPE", col=STEEL)
 
 ax.text(-100, 14, f"battery to sweep  {CLEAR:.1f} mm\nbattery to arm pivot  {PIV_GAP:.1f} mm\n"
-        f"motor tail to upright  {BACK_CLEAR:.1f} mm",
+        f"motor tail to servo  {BACK_CLEAR:.1f} mm",
         fontproperties=MONO, fontsize=6.5, color=VERM, ha="center", va="top", linespacing=1.6,
         bbox=dict(fc=PAPER, ec="none", pad=0.6))
 
@@ -216,8 +212,8 @@ lab(ax, 0, -(WB / 2 + 40), "REAR SPINE", col=STEEL)
 lab(ax, 52, 60, "RAIL", col=STEEL, size=5.6)
 lab(ax, BAT_X / 2 + 8, -BAT_Y / 2 - 6, "CRADLE", col=STEEL, size=5.6)
 lab(ax, -BAT_X / 2 - 8, -BAT_Y / 2 - 6, "CRADLE", col=STEEL, size=5.6)
-lab(ax, -KP_X + UPR_BACK[1] + 2, WB / 2 - 26, "UPRIGHT", col=STEEL, size=5.6)
-lab(ax, -KP_X + SERVO_A / 2, WB / 2 + STEER_ARM + 9, "LINK", col=VERM, size=5.6)
+lab(ax, -PIVOT + 20, WB / 2 - 34, "MG996R", col=STEEL, size=5.6)
+lab(ax, -KP_X + ARM / 2, WB / 2 + STEER_ARM + 9, "TIE ROD", col=VERM, size=5.6)
 ax.text(-R_spin - 3, 0, "SPIN-IN-PLACE CIRCLE", fontproperties=LABEL_M, fontsize=5.6,
         color=GREY, ha="center", va="center", rotation=90, bbox=dict(fc=PAPER, ec="none", pad=0.8))
 lab(ax, -150, 40, f"±{STEER:.0f}° SWEEP", col=VERM, size=5.8)
@@ -237,7 +233,6 @@ KX = KP_X
 T_IN, T_OUT = KX - TIRE_IN, KX - TIRE_OUT
 TC = (T_IN + T_OUT) / 2
 TAIL_E = KX - TAIL_X
-HX = KX - HINGE_A                   # outer hinges, elevation x
 PX = PIVOT                          # chassis pivots
 
 ex.plot([-28, 206], [0, 0], lw=MED, c=INK)
@@ -268,50 +263,46 @@ ex.add_patch(Rectangle((TAIL_E, AXLE - MOTOR_D / 2), TAIL_X, MOTOR_D, fc=PAPER, 
                        zorder=3))
 ex.add_patch(Rectangle((TAIL_E, AXLE - MOTOR_D / 2), 10, MOTOR_D, fc=INK, alpha=0.18, ec="none",
                        zorder=3))
-# knuckle plate (steers)
-ex.add_patch(Polygon([[KX, KP_LO_Z + 3], [KX + 5, KP_LO_Z + 3], [KX + 5, KP_UP_Z - 3],
-                      [KX, KP_UP_Z - 3]], closed=True, fc=VERM, alpha=0.3, ec=VERM, lw=THIN,
+# knuckle plate (steers) + kingpin blocks (ride with the wheel, do not steer)
+ex.add_patch(Polygon([[KX, KP_LO_Z + 5], [KX + 5, KP_LO_Z + 5], [KX + 5, KP_UP_Z - 5],
+                      [KX, KP_UP_Z - 5]], closed=True, fc=VERM, alpha=0.3, ec=VERM, lw=THIN,
                      zorder=4))
-# upright: prongs + back (moves with suspension, does not steer)
-for z0, z1 in (PRONG_LO_Z, PRONG_UP_Z):
-    ex.add_patch(Rectangle((KX - UPR_BACK[0], z0), UPR_BACK[0] + 4, z1 - z0, fc=STEEL, alpha=0.3,
-                           ec=STEEL, lw=THIN, zorder=5))
-ex.add_patch(Rectangle((KX - UPR_BACK[1], UPR_Z[0]), UPR_BACK[1] - UPR_BACK[0],
-                       UPR_Z[1] - UPR_Z[0], fc=STEEL, alpha=0.45, ec=STEEL, lw=THIN, zorder=5))
 for z in (KP_LO_Z, KP_UP_Z):
-    ex.add_patch(Circle((KX, z), 2.6, fc=PAPER, ec=INK, lw=THIN, zorder=7))
-# servo on the upright + link
+    ex.add_patch(Rectangle((KX - BLOCK / 2, z - BLOCK / 2), BLOCK, BLOCK, fc=STEEL, alpha=0.5,
+                           ec=STEEL, lw=THIN, zorder=6))
+    ex.add_patch(Circle((KX, z), 1.8, fc=PAPER, ec=INK, lw=THIN, zorder=7))
+# boomerang arms and tie rod, all rising RISE to the chassis
+for z0, name in ((KP_LO_Z, "lower"), (KP_UP_Z, "upper")):
+    a_, h_ = map(np.asarray, SHAPES[name])
+    ex.plot(KX - a_, z0 + h_, lw=MED * 1.8, c=STEEL, solid_capstyle="round",
+            solid_joinstyle="round", zorder=5)
+    ex.add_patch(Circle((PX, z0 + RISE), 2.4, fc=PAPER, ec=STEEL, lw=THIN, zorder=7))
+ex.plot([KX, PX], [TR_Z, HORN_Z], lw=THIN * 1.4, c=VERM, zorder=6)
+for x, z in ((KX, TR_Z), (PX, HORN_Z)):
+    ex.add_patch(Circle((x, z), 1.8, fc=PAPER, ec=VERM, lw=THIN, zorder=7))
+# servo on the spine, horn on a standoff
 (sa0, sa1), _, (sz0, sz1) = SERVO_BOX
-ex.add_patch(Rectangle((KX - sa1, sz0), sa1 - sa0, sz1 - sz0, fc=PAPER, ec=INK, lw=THIN,
-                       zorder=5))
-ex.add_patch(Rectangle((KX - sa1 - 7, sz0 + 26), sa1 - sa0 + 14, 2.5, fc=PAPER, ec=INK, lw=THIN,
-                       zorder=5))
-ex.plot([KX - SERVO_A] * 2, [HORN_Z, sz0], lw=MED, c=INK, zorder=6)
-ex.plot([KX - SERVO_A, KX], [HORN_Z, HORN_Z], lw=THIN * 1.4, c=VERM, zorder=6)
-for x in (KX - SERVO_A, KX):
-    ex.add_patch(Circle((x, HORN_Z), 1.8, fc=PAPER, ec=VERM, lw=THIN, zorder=7))
-# arms: straight, parallel, rising to the chassis
-for z in (LO_H_Z, UP_H_Z):
-    ex.plot([HX, PX], [z, z + RISE], lw=MED * 1.8, c=STEEL, solid_capstyle="round", zorder=5)
-    ex.add_patch(Circle((HX, z), 2.4, fc=PAPER, ec=STEEL, lw=THIN, zorder=7))
-    ex.add_patch(Circle((PX, z + RISE), 2.4, fc=PAPER, ec=STEEL, lw=THIN, zorder=7))
+ex.add_patch(Rectangle((KX - sa1, sz0), sa1 - sa0, sz1 - sz0, fc=STEEL, alpha=0.14, ec=STEEL,
+                       lw=THIN, zorder=4))
+ex.plot([PX, PX], [sz1, HORN_Z], lw=MED, c=INK, zorder=5)
 # spine + shock tower
-ex.add_patch(Rectangle((0, BELLY), PX + 12, UP_H_Z - LO_H_Z + 16, fc=STEEL, alpha=0.05,
+ex.add_patch(Rectangle((0, BELLY), PX + 12, KP_UP_Z - KP_LO_Z + 16, fc=STEEL, alpha=0.05,
                        ec=STEEL, lw=THIN, ls=(0, (4, 2))))
-ex.add_patch(Rectangle((0, UP_H_Z + RISE + 8), TOWER_X + 4, SHOCK_TOP_Z - UP_H_Z - RISE,
+ex.add_patch(Rectangle((0, KP_UP_Z + RISE + 8), TOWER_X + 4, SHOCK_TOP_Z - KP_UP_Z - RISE,
                        fc=STEEL, alpha=0.05, ec=STEEL, lw=THIN, ls=(0, (4, 2))))
-s0 = np.array([HX - SHOCK_ON_ARM, LO_H_Z + RISE * SHOCK_ON_ARM / ARM])
+s0 = SHOCK_LO
 s1 = np.array([TOWER_X, SHOCK_TOP_Z])
 u = (s1 - s0) / SHOCK_LEN; n = np.array([-u[1], u[0]])
 body0, body1 = s0 + u * 12, s0 + u * (SHOCK_LEN * 0.62)
+ex.plot([s0[0], s0[0]], [s0[1] - SHOCK_EYE_UP, s0[1]], lw=MED, c=STEEL, zorder=5)
 ex.plot(*zip(s0, s1), lw=THIN, c=INK)
 ex.add_patch(Polygon([body0 + n * SHOCK_R, body1 + n * SHOCK_R, body1 - n * SHOCK_R,
                       body0 - n * SHOCK_R], fc=PAPER, ec=INK, lw=THIN, zorder=6))
 for k in np.linspace(0.12, 0.9, 11):
-    p = body0 + (body1 - body0) * k
-    ex.plot(*zip(p + n * SHOCK_R, p - n * SHOCK_R), lw=HAIR, c=INK, zorder=7)
-for p in (s0, s1):
-    ex.add_patch(Circle(p, 2.4, fc=PAPER, ec=INK, lw=THIN, zorder=8))
+    p_ = body0 + (body1 - body0) * k
+    ex.plot(*zip(p_ + n * SHOCK_R, p_ - n * SHOCK_R), lw=HAIR, c=INK, zorder=7)
+for p_ in (s0, s1):
+    ex.add_patch(Circle(p_, 2.4, fc=PAPER, ec=INK, lw=THIN, zorder=8))
 
 
 def elab(x, y, s, tx, ty, col=INK, ha="center"):
@@ -321,15 +312,15 @@ def elab(x, y, s, tx, ty, col=INK, ha="center"):
                 bbox=dict(fc=PAPER, ec="none", pad=0.6))
 
 
-elab(KX + 3, KP_LO_Z + 10, "KNUCKLE PLATE  (steers)", 176, 26, col=VERM)
+elab(KX + 3, KP_LO_Z + 12, "KNUCKLE PLATE  (steers)", 176, 26, col=VERM)
 elab(T_OUT - 4, 110, f"TIRE  {TIRE_D:.0f} × {TIRE_W:.0f}", 190, 136)
-elab(KX - SERVO_A + 14, sz1 - 8, "MG996R  (on upright)", 150, 160)
-elab(KX - UPR_BACK[1] + 2, UPR_Z[0] + 8, "UPRIGHT", 92, 12, col=STEEL)
-elab(KX - SERVO_A / 2, HORN_Z, "LINK  1:1", 118, 112, col=VERM)
-elab(TAIL_E + 30, AXLE - MOTOR_D / 2, f"JGA25-370 + ENC  {MOTOR_BODY:.0f}", 60, 24)
-elab((HX + PX) / 2, UP_H_Z + RISE / 2, f"UPPER ARM  {ARM:.0f}", 36, 142, col=STEEL)
-elab((HX + PX) / 2 + 6, LO_H_Z + RISE / 2 + 1, f"LOWER ARM  {ARM:.0f}", 16, 22, col=STEEL)
-elab((s0[0] + s1[0]) / 2 - 4, (s0[1] + s1[1]) / 2, f"SHOCK  {SHOCK_LEN:.0f}", 64, 172)
+elab(KX - BLOCK / 2, KP_UP_Z + 3, "KINGPIN BLOCKS", 150, 160, col=STEEL)
+elab(KX - sa1 + 8, sz0 + 6, "MG996R  (spine)", 30, 22, col=STEEL)
+elab(KX - 60, TR_Z + RISE * 60 / ARM, "TIE ROD  1:1", 104, 118, col=VERM)
+elab(TAIL_E + 30, AXLE - MOTOR_D / 2, f"JGA25-370 + ENC  {MOTOR_BODY:.0f}", 84, 30)
+elab(KX - 86, KP_UP_Z + RISE, f"UPPER ARM  {ARM:.0f}  (boomerang)", 58, 150, col=STEEL)
+elab(KX - 40, KP_LO_Z, f"LOWER ARM  {ARM:.0f}  (boomerang)", 110, 10, col=STEEL)
+elab((s0[0] + s1[0]) / 2 - 4, (s0[1] + s1[1]) / 2, f"SHOCK  {SHOCK_LEN:.0f}", 70, 178)
 
 ex.plot([KX, KX], [-2, -12], lw=HAIR, c=VERM)
 ex.plot([TC, TC], [-2, -12], lw=HAIR, c=VERM)
@@ -355,8 +346,8 @@ rows = [
     ("Kingpin c-c / scrub radius", f"{2 * KP_X:.0f} / {SCRUB:.0f} mm"),
     ("Spin-in-place angle  /  clearance swept", f"{SPIN:.1f}°  /  ±{STEER:.0f}°"),
     ("Battery to sweep / to arm pivot", f"{CLEAR:.1f} / {PIV_GAP:.1f} mm"),
-    ("Motor tail to upright back (swept)", f"{BACK_CLEAR:.1f} mm"),
-    ("Arms (straight, parallel) / rise", f"{ARM:.0f} / {RISE:.0f} mm"),
+    ("Motor tail to servo (swept)", f"{BACK_CLEAR:.1f} mm"),
+    ("Arms = tie rod (boomerang) / rise", f"{ARM:.0f} / {RISE:.0f} mm"),
     ("Belly height / shock tower top", f"{BELLY:.0f} / {SHOCK_TOP_Z:.0f} mm"),
     ("Wheel / motor + enc, measured", f"{TIRE_D:.0f}×{TIRE_W:.0f} / {MOTOR_BODY:.0f} mm"),
 ]
@@ -370,11 +361,11 @@ for i, (k, v) in enumerate(rows):
             ha="right", va="center")
     tb.plot([0, 100], [y - 3.2, y - 3.2], lw=HAIR, c=GREY, alpha=0.5)
 
-title_block(tb, "corner & chassis layout  —  study 05", "2026-09-25")
+title_block(tb, "corner & chassis layout  —  study 07", "2026-09-25")
 
 for j, (col, txt, style) in enumerate(((INK, "wheel · motor · shock", "-"),
-                                       (VERM, "steers: sweep · knuckle · link", "-"),
-                                       (STEEL, "upright · arms · chassis", "--"))):
+                                       (VERM, "steers: sweep · knuckle · tie rod", "-"),
+                                       (STEEL, "arms · blocks · spine · servo", "--"))):
     x = j * 34
     tb.plot([x, x + 6], [33, 33], lw=MED, c=col, ls=style)
     tb.text(x + 8, 33, txt, fontproperties=LABEL, fontsize=5.8, color=INK, va="center")
