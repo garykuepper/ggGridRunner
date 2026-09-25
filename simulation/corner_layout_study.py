@@ -2,7 +2,7 @@
 
 Draws the +/-STEER sweep of each tire + motor unit (4WIS, one servo per corner) and
 reports how much the crosswise battery clears the nearest sweep. Parameters are
-design targets from the chassis brainstorm; motor + hex length (72 mm) is measured.
+design targets from the chassis brainstorm; motor + hex (72 mm) and hex seat (10 mm) are measured.
 
     python simulation/corner_layout_study.py
 """
@@ -40,21 +40,23 @@ HAIR, THIN, MED = 0.35, 0.6, 1.1
 # ---- parameters (mm) -------------------------------------------------------
 T, WB = 240.0, 240.0            # track, wheelbase (kingpin centres)
 TIRE_D, TIRE_W = 75.0, 30.0
-ADAPT = 10.0                    # 4 mm -> 12 mm hex adapter
-MOTOR_L, MOTOR_D = 62.0, 25.0   # JGA25-370 + encoder; ADAPT + MOTOR_L = 72 measured
+HEX_SEAT = 10.0                 # outer wheel face -> hex mating face (measured)
+MOTOR_TOTAL, MOTOR_D = 72.0, 25.0  # hex mating face -> encoder back (measured)
 STEER = 50.0                    # mechanical clearance, deg
 BAT_X, BAT_Y, BAT_Z = 144.0, 65.0, 36.0
 RIDE = 30.0
 ENV = 140.0
 
-M0 = TIRE_W / 2 + ADAPT          # motor inboard start from kingpin
-M1 = M0 + MOTOR_L
+HEX0 = -TIRE_W / 2 + HEX_SEAT    # hex mating face, from kingpin (tire centre)
+M0 = TIRE_W / 2                  # motor emerges at the tire inner face
+M1 = HEX0 + MOTOR_TOTAL          # encoder back
+MOTOR_L = M1 - M0
 
 
 def unit_polys():
     """Tire, adapter, motor outlines in kingpin frame, motor toward +x."""
     tire = np.array([[-15, -37.5], [15, -37.5], [15, 37.5], [-15, 37.5]])
-    adap = np.array([[15, -6], [M0, -6], [M0, 6], [15, 6]])
+    adap = np.array([[HEX0, -6], [M0, -6], [M0, 6], [HEX0, 6]])
     mot = np.array([[M0, -12.5], [M1, -12.5], [M1, 12.5], [M0, 12.5]])
     return tire, adap, mot
 
@@ -275,7 +277,8 @@ ex.add_patch(FancyBboxPatch((KX - 15, 0), 30, TIRE_D, boxstyle="round,pad=0,roun
 for z in np.arange(6, TIRE_D - 4, 5):
     ex.plot([KX - 15, KX + 15], [z, z], lw=HAIR, c=PAPER, alpha=0.35)
 # adapter + motor
-ex.add_patch(Rectangle((KX - M0, AXLE - 6), ADAPT, 12, fc=PAPER, ec=INK, lw=THIN))
+ex.add_patch(Rectangle((KX - M0, AXLE - 6), M0 - HEX0, 12, fc=PAPER, ec=INK, lw=THIN,
+                       ls=(0, (2, 1.5)), zorder=3))
 ex.add_patch(Rectangle((KX - M1, AXLE - 12.5), MOTOR_L, MOTOR_D, fc=PAPER, ec=INK, lw=MED))
 ex.add_patch(Rectangle((KX - M1, AXLE - 12.5), 14, MOTOR_D, fc=INK, alpha=0.18, ec="none"))
 ex.plot([KX - M0 - 21, KX - M0 - 21], [AXLE - 12.5, AXLE + 12.5], lw=HAIR, c=INK)
@@ -325,7 +328,7 @@ elab(KX + 10, 120, "MG996R  (in upright)", 142, 170)
 elab(KX + 7, UP0 + 5, "BEARING  (takes load)", 142, 106)
 elab(KX + 6, 84, "YOKE  (steers)", 142, 88, col=VERM)
 elab(KX + 15, 55, "TIRE  75 × 30", 142, 60)
-elab(KX - 60, AXLE - 12.5, f"JGA25-370 + HEX  {ADAPT + MOTOR_L:.0f}", 60, -16)
+elab(KX - 60, AXLE - 12.5, f"JGA25-370 + HEX  {MOTOR_TOTAL:.0f}", 60, -16)
 elab(90, LA_Z, "LOWER ARM", 90, 72, col=STEEL, ha="center")
 elab(88, UA_Z, "UPPER ARM", 86, 158, col=STEEL, ha="center")
 elab(72, 131, "SHOCK", 12, 160, col=INK, ha="center")
@@ -351,7 +354,7 @@ rows = [
     ("Spin-in-place angle", f"{np.degrees(np.arctan(WB / T)):.1f}°"),
     ("Steering: commanded / clearance", f"±45° / ±{STEER:.0f}°"),
     ("Battery clearance to sweep", f"{CLEAR:.1f} mm per side"),
-    ("Motor + hex, measured", f"{ADAPT + MOTOR_L:.0f} mm"),
+    ("Hex seat / motor + hex, measured", f"{HEX_SEAT:.0f} / {MOTOR_TOTAL:.0f} mm"),
     ("Print envelope (Mini, margin)", f"{ENV:.0f} × {ENV:.0f} × 145"),
 ]
 tb.text(0, 97, "SCHEDULE", fontproperties=LABEL_M, fontsize=7, color=INK, va="top")
