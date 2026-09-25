@@ -350,7 +350,7 @@ tb.set_xlim(0, 100); tb.set_ylim(0, 100); tb.axis("off")
 
 rows = [
     ("Track, kingpin c-c", f"{T:.0f} mm"),
-    ("Wheelbase", f"{WB:.0f} mm   (was 230)"),
+    ("Wheelbase", f"{WB:.0f} mm"),
     ("Spin-in-place angle", f"{np.degrees(np.arctan(WB / T)):.1f}°"),
     ("Steering: commanded / clearance", f"±45° / ±{STEER:.0f}°"),
     ("Battery clearance to sweep", f"{CLEAR:.1f} mm per side"),
