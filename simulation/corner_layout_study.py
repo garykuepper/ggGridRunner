@@ -2,7 +2,7 @@
 
 Draws the +/-STEER sweep of each tire + motor unit (4WIS, one servo per corner) and
 reports how much the crosswise battery clears the nearest sweep. Parameters are
-design targets from the chassis brainstorm; MOTOR_L is an estimate until measured.
+design targets from the chassis brainstorm; motor + hex length (72 mm) is measured.
 
     python simulation/corner_layout_study.py
 """
@@ -25,7 +25,7 @@ def font(name, family="sans-serif"):
     if os.path.exists(path):
         fm.fontManager.addfont(path)
         return fm.FontProperties(fname=path)
-    return fm.FontProperties(family=family)
+    return fm.FontProperties(family=[family])
 
 
 LABEL = font("Jura-Light.ttf")
@@ -41,7 +41,7 @@ HAIR, THIN, MED = 0.35, 0.6, 1.1
 T, WB = 240.0, 240.0            # track, wheelbase (kingpin centres)
 TIRE_D, TIRE_W = 75.0, 30.0
 ADAPT = 10.0                    # 4 mm -> 12 mm hex adapter
-MOTOR_L, MOTOR_D = 70.0, 25.0   # JGA25-370 + encoder (ESTIMATE)
+MOTOR_L, MOTOR_D = 62.0, 25.0   # JGA25-370 + encoder; ADAPT + MOTOR_L = 72 measured
 STEER = 50.0                    # mechanical clearance, deg
 BAT_X, BAT_Y, BAT_Z = 144.0, 65.0, 36.0
 RIDE = 30.0
@@ -325,7 +325,7 @@ elab(KX + 10, 120, "MG996R  (in upright)", 142, 170)
 elab(KX + 7, UP0 + 5, "BEARING  (takes load)", 142, 106)
 elab(KX + 6, 84, "YOKE  (steers)", 142, 88, col=VERM)
 elab(KX + 15, 55, "TIRE  75 × 30", 142, 60)
-elab(KX - 60, AXLE - 12.5, f"JGA25-370  ~{MOTOR_L:.0f} long", 60, -16)
+elab(KX - 60, AXLE - 12.5, f"JGA25-370 + HEX  {ADAPT + MOTOR_L:.0f}", 60, -16)
 elab(90, LA_Z, "LOWER ARM", 90, 72, col=STEEL, ha="center")
 elab(88, UA_Z, "UPPER ARM", 86, 158, col=STEEL, ha="center")
 elab(72, 131, "SHOCK", 12, 160, col=INK, ha="center")
@@ -351,7 +351,7 @@ rows = [
     ("Spin-in-place angle", f"{np.degrees(np.arctan(WB / T)):.1f}°"),
     ("Steering: commanded / clearance", f"±45° / ±{STEER:.0f}°"),
     ("Battery clearance to sweep", f"{CLEAR:.1f} mm per side"),
-    ("Motor + encoder length", f"{MOTOR_L:.0f} mm  ESTIMATE"),
+    ("Motor + hex, measured", f"{ADAPT + MOTOR_L:.0f} mm"),
     ("Print envelope (Mini, margin)", f"{ENV:.0f} × {ENV:.0f} × 145"),
 ]
 tb.text(0, 97, "SCHEDULE", fontproperties=LABEL_M, fontsize=7, color=INK, va="top")
