@@ -46,23 +46,27 @@ past the wheel's inner face.
      front/rear spines.
    - **Motor:** lies between the arms and steers with the wheel. Its tail sweeps 62 mm about the
      kingpin.
-   - **Links are angled (dog-legs) so the motor can swing through the suspension travel.**
-     - Parallel arms keep the motor level, so it rises the full wheel travel. A link only rises
-       `dz · (1 − a/ARM)` at distance `a` from the kingpin, so at the motor tail the gap closes by
-       about 65% of the travel.
-     - The upper arm and the tie rod each step up over the motor: **+13 mm** and **+10 mm**. The
-       step ramps up from 20 to 30 mm along the arm and back down from 70 to 84 mm, outside the
-       hub pocket.
-     - The lower arm stays straight, which keeps ground clearance; its droop gap is sufficient.
+   - **Links are inclined boomerangs, so the chassis rides higher and the wheels hang lower.**
+     - Every inner pivot (upper arm, lower arm, servo horn) sits **20 mm above** its knuckle
+       joint, so the links stay a parallelogram and the motor stays level.
+     - **Upper arm:** a short diagonal from the knuckle up to a bend 29 mm inboard, then flat to
+       the chassis.
+     - **Lower arm:** the same part flipped. It runs flat under the motor, then angles up to the
+       chassis past the motor tail (bend at 66 mm).
+     - **Tie rod:** straight. It rises 20 mm inboard, which is more than the 15 mm bump travel,
+       so its gap to the motor never shrinks anywhere in the travel.
+     - **Why:** parallel links keep the motor level, so it rises the full wheel travel, while a
+       link only rises `dz · (1 − a/ARM)` at distance `a` from the kingpin. A link that climbs
+       toward the chassis stays out of the motor's way.
 3. **Steering: option A, servo on the chassis spine, tie rod to the knuckle.**
    - **Linkage:** an 18 mm steering arm on the knuckle and an 18 mm servo horn, with the tie rod the
-     same length as the arms and parallel to them. That makes a parallelogram, so the wheel turns
+     same length as the arms and parallel to them (same 20 mm rise). That makes a parallelogram, so the wheel turns
      exactly as far as the servo (1:1) out to ±50°, and bump steer is near zero.
    - **Wiring:** the servo is sprung and protected, and no servo wiring crosses the steering axis.
    - **Rejected:** keeping a non-steering carrier with the servo on it (study 02 option B). It had
      39 mm scrub, 3× the steering torque, and a heavier corner.
-4. **Shock on the upper arm**, 40% of the way in from the knuckle, to a central tower (top mount
-   z = 154). In the prototype the shock's lower mount sits where the motor tail would hit it at
+4. **Shock on the upper arm**, 40% of the way in from the knuckle, to a central tower. The top
+   mount sits at z = 174 so the shock is 100 mm eye to eye. In the prototype the shock's lower mount sits where the motor tail would hit it at
    about 20° of steer; on the upper arm it stays above the motor's sweep.
 5. **Battery lengthwise (144 mm side fore-aft)**, low, on the centerline, held by two side cradles.
    The sides beside it are left open for the motor drivers, servo regulator and Blue Pill.
@@ -79,15 +83,16 @@ past the wheel's inner face.
 | Battery to nearest tire/motor sweep | 39.7 mm |
 | Battery end to lower-arm pivot boss | 18.0 mm (40 mm wishbone spread, 5 mm boss radius) |
 | Motor tail to servo body, full sweep | 22.7 mm |
+| Belly (spine underside) height | about 44 mm, up from about 24 mm with flat arms |
 
 Motor gaps over +15 / −10 mm travel (worst case over any steer angle):
 
 | Link | Gap |
 |---|---|
-| Tie rod | 4.3 mm |
-| Upper arm | 10.3 mm |
-| Lower arm | 4.9 mm |
-| Tie rod to upper arm | 5.0 mm, constant because the links are parallel |
+| Tie rod | 5.5 mm (never shrinks: its 20 mm rise exceeds the 15 mm bump) |
+| Upper arm | 13.5 mm |
+| Lower arm | 4.9 mm (at full droop) |
+| Tie rod to upper arm | 4.0 mm minimum, near the knuckle |
 
 The footprint is about 312 × 350 mm.
 
@@ -101,16 +106,17 @@ These are in git history:
 ## Section 2: Corner module (PROPOSED, awaiting sign-off)
 
 ```
- spine ─┬ lower wishbone (straight)  ───────────────┐
-        ├ MG996R → 18 mm horn → tie rod (dog-leg) ──┼─ KNUCKLE PLATE on gearbox face, in hub pocket
-        └ upper wishbone (dog-leg) ─ shock ─ tower ─┘     └ JGA25 → hex → wheel
+ spine ─┬ lower wishbone (boomerang, flipped) ──────┐   inner ends 20 mm above the knuckle joints
+        ├ MG996R → 18 mm horn → tie rod (straight) ─┼─ KNUCKLE PLATE on gearbox face, in hub pocket
+        └ upper wishbone (boomerang) ─ shock ─ tower┘     └ JGA25 → hex → wheel
 ```
 
 | Part | Proposal | Why |
 |---|---|---|
 | Kingpin joints | Top and bottom pivots on the knuckle plate: M3 ball studs, or pins in flanged nylon bushings, 58 mm apart | The prototype uses ball-style joints. The user prefers nylon bushings over ball bearings |
 | Knuckle plate | Octagon, about 44 mm across, bolted to the gearbox face's M3 holes, steering arm on top | Must fit the 81 mm pocket with clearance at ±50° |
-| Steering linkage | Metal 25T horn on the MG996R, M3 ball links, printed or rod tie rod with a dog-leg | 1:1 parallelogram |
+| Steering linkage | Metal 25T horn on the MG996R, M3 ball links, straight M3 rod tie rod | 1:1 parallelogram |
+| Arms | Upper and lower are one boomerang part, printed ×8 (the lower is the upper flipped) | Fewer unique parts |
 | Steering stops | Printed hard stops at ±52° | Protect the servo, linkage and wiring |
 | Motor wiring | Service loop near the kingpin axis, then along the lower arm | Near the axis, ±50° only twists the wire instead of pulling it |
 
@@ -118,7 +124,8 @@ These are in git history:
   at 10 mm scrub takes about 0.8 × 6.9 × 0.010 ≈ **0.06 N·m**, plus contact-patch twist. The
   MG996R's ~1 N·m has a large margin.
 - **Servo power:** a dedicated **5–6 V, ≥8 A regulator**, separate from the logic buck converter.
-- **Ground clearance:** about 28 mm under the lower arm.
+- **Ground clearance:** about 28 mm under the lower arm at the knuckle; the spine belly is at
+  about 44 mm.
 
 ### Tight spots to check in CAD
 
@@ -126,15 +133,15 @@ These are in git history:
 |---|---|
 | Tie rod entering the hub pocket at 50° of steer | about 5 mm to the pocket rim |
 | Servo body to lower-arm pivot bosses | about 3 mm vertically |
-| Tie rod to motor at full bump | 4.3 mm |
-| Shock tower | top at 154 mm makes the spine about 130 mm tall; fits 145 but it's a tall print |
+| Tie rod to upper arm near the knuckle | 4.0 mm |
+| Shock tower | top at 174 mm, belly at 44, so the spine is about 130 mm tall; fits 145 but it's a tall print |
 
 ## Open questions
 
 - Section 2 sign-off: joint type (ball studs versus nylon-bushed pins), horn and ball links,
   separate servo regulator.
 - Wheel travel split: +15 / −10 mm assumed. Confirm against the shocks.
-- Is about 28 mm of ground clearance enough?
+- Inner rise: 20 mm assumed. More rise lifts the chassis further but tilts the arms more at droop.
 - Printer Z height: confirm against the actual machine (158 mm stock).
 
 ## Next sections to design

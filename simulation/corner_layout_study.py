@@ -55,18 +55,27 @@ PIVOT = 30.0                    # inner pivots (both arms, servo, tie rod) from 
 WB = 230.0                      # wheelbase (kingpin c-c fore-aft)
 STEER = 50.0                    # mechanical clearance, deg
 LO_Z, UP_Z = 32.0, 90.0         # knuckle joints: lower / upper arm (inside the hub pocket)
-TR_Z = 82.0                     # tie rod height (between motor top and upper arm)
+TR_Z = 80.0                     # tie rod height (between motor top and upper arm)
 STEER_ARM = 18.0                # knuckle steering arm = servo horn length (parallelogram)
 LO_SPREAD, UP_SPREAD = 20.0, 15.0  # half-spread of the wishbone inner pivots, fore-aft
 SHOCK_AT = 0.4                  # shock mount on upper arm, fraction of arm from the knuckle
 BUMP, DROOP = 15.0, 10.0        # wheel travel from ride height (25 total)
-UP_BOW, TR_BOW, LO_BOW = 13.0, 10.0, 0.0  # dog-leg offset of each link over the motor
-BOW_A = (20.0, 30.0, 70.0, 84.0)  # along the arm from the kingpin: ramp up, full, ramp down
+RISE = 20.0                     # inner pivots sit this much above the knuckle joints: the
+                                # chassis rides higher, wheels hang lower; >= BUMP keeps the
+                                # tie rod rising away from the motor at every point of travel
+BEND_A = 29.0                   # boomerang bend, along the arm from the knuckle (upper arm);
+                                # the lower arm is the same part flipped: bend at ARM - BEND_A
+# Link shapes: (distance inboard from the kingpin, height above the knuckle joint).
+SHAPES = {
+    "upper": ([0.0, BEND_A, ARM], [0.0, RISE, RISE]),
+    "lower": ([0.0, ARM - BEND_A, ARM], [0.0, 0.0, RISE]),
+    "tie rod": ([0.0, ARM], [0.0, RISE]),
+}
+SHOCK_LEN = 100.0               # shock eye to eye at ride height
 ARM_HALF, TR_HALF = 4.0, 2.0    # half-thickness of an arm / the tie rod (elevation)
-TOWER_X, TOWER_Z = 10.0, 154.0  # shock tower top mount
+TOWER_X = 10.0                  # shock tower top mount, from centreline
 BAT_L, BAT_W, BAT_Z = 144.0, 65.0, 36.0   # 4S4P brick: two layers of 8 cells along BAT_L
 BAT_X, BAT_Y = BAT_W, BAT_L     # plan size: long side fore-aft
-RIDE = 36.0                     # battery underside
 ENV = 140.0
 
 # Drawing coords: X lateral, Y forward (plan reads forward-up). Rover frame: +X forward,
@@ -152,9 +161,9 @@ PIV_GAP = WB / 2 - LO_SPREAD - PIV_BOSS - BAT_Y / 2
 TAIL_R = np.hypot(TAIL_X, MOTOR_D / 2)
 
 
-def bow(a, h):
-    """Dog-leg offset of a link at distance a (inboard) from the kingpin."""
-    return np.interp(a, [0, *BOW_A, ARM], [0, 0, h, h, 0, 0])
+def shape(a, name):
+    """Height of a link above its knuckle joint at distance a (inboard) from the kingpin."""
+    return np.interp(a, *SHAPES[name])
 
 
 def travel_gaps():
@@ -170,15 +179,20 @@ def travel_gaps():
     for dz in np.linspace(-DROOP, BUMP, 101):
         close = dz * a / ARM
         g["upper arm"] = min(g["upper arm"],
-                             (UP_Z + bow(a, UP_BOW) - ARM_HALF - top - close).min())
-        g["tie rod"] = min(g["tie rod"], (TR_Z + bow(a, TR_BOW) - TR_HALF - top - close).min())
+                             (UP_Z + shape(a, "upper") - ARM_HALF - top - close).min())
+        g["tie rod"] = min(g["tie rod"], (TR_Z + shape(a, "tie rod") - TR_HALF - top - close).min())
         g["lower arm"] = min(g["lower arm"],
-                             (bot - LO_Z - bow(a, LO_BOW) - ARM_HALF + close).min())
+                             (bot - LO_Z - shape(a, "lower") - ARM_HALF + close).min())
     return g
 
 
 TRAVEL_GAPS = travel_gaps()
-ROD_TO_ARM = (UP_Z + UP_BOW - ARM_HALF) - (TR_Z + TR_BOW + TR_HALF)  # constant: parallel links
+_a = np.linspace(0, ARM, 400)
+ROD_TO_ARM = (UP_Z + shape(_a, "upper") - ARM_HALF - TR_Z - shape(_a, "tie rod") - TR_HALF).min()
+SHOCK_A = ARM * SHOCK_AT
+SHOCK_LO = np.array([KP_X - SHOCK_A, UP_Z + shape(SHOCK_A, "upper")])  # elevation coords
+TOWER_Z = SHOCK_LO[1] + np.sqrt(SHOCK_LEN ** 2 - (SHOCK_LO[0] - TOWER_X) ** 2)
+BELLY = LO_Z + RISE - 8         # spine underside near the lower pivots
 MOD_Y0 = BAT_Y / 2 + 4
 
 fig = plt.figure(figsize=(17, 11), dpi=200, facecolor=PAPER)
@@ -344,10 +358,10 @@ for x in np.arange(-34, 197, 5):
 ex.plot([0, 0], [-10, 176], lw=HAIR, c=GREY, ls=(0, (12, 3, 2, 3)))
 ex.plot([KX, KX], [-10, 176], lw=HAIR, c=INK, ls=(0, (12, 3, 2, 3)))
 ex.text(KX + 2, 178, "KINGPIN AXIS", fontproperties=LABEL, fontsize=5.4, color=INK, ha="left")
-ex.text(1.5, 178, "CL  CHASSIS", fontproperties=LABEL, fontsize=5.4, color=GREY, ha="left")
+ex.text(16, 178, "CL  CHASSIS", fontproperties=LABEL, fontsize=5.4, color=GREY, ha="left")
 
 # battery behind (dashed)
-ex.add_patch(Rectangle((0, RIDE), BAT_X / 2, BAT_Z, fc=INK, alpha=0.05, ec=INK, lw=THIN,
+ex.add_patch(Rectangle((0, BELLY), BAT_X / 2, BAT_Z, fc=INK, alpha=0.05, ec=INK, lw=THIN,
                        ls=(0, (3, 2))))
 
 # tire + travel ghosts
@@ -377,9 +391,9 @@ for z in (LO_Z, UP_Z):
 ex.plot([KX, KX + 2], [TR_Z, TR_Z], lw=MED, c=VERM, zorder=6)
 
 
-def link_pts(z0, h):
-    a = np.array([0, *BOW_A, ARM])
-    return np.column_stack([KX - a, z0 + bow(a, h)])
+def link_pts(z0, name):
+    a, h = map(np.asarray, SHAPES[name])
+    return np.column_stack([KX - a, z0 + h])
 
 
 def swing(pts, dz):
@@ -392,30 +406,30 @@ def swing(pts, dz):
 
 # travel ghosts: links and motor at full bump and full droop
 for dz in (-DROOP, BUMP):
-    for z0, h, col in ((LO_Z, LO_BOW, STEEL), (UP_Z, UP_BOW, STEEL), (TR_Z, TR_BOW, VERM)):
-        q = swing(link_pts(z0, h), dz)
+    for z0, name, col in ((LO_Z, "lower", STEEL), (UP_Z, "upper", STEEL), (TR_Z, "tie rod", VERM)):
+        q = swing(link_pts(z0, name), dz)
         ex.plot(q[:, 0], q[:, 1], lw=HAIR, c=col, ls=(0, (2, 2)), zorder=2)
     ex.add_patch(Rectangle((TAIL_E, AXLE - MOTOR_D / 2 + dz), TAIL_X, MOTOR_D, fc="none",
                            ec=GREY, lw=HAIR, ls=(0, (2, 2)), zorder=2))
-tr = link_pts(TR_Z, TR_BOW)
+tr = link_pts(TR_Z, "tie rod")
 ex.plot(tr[:, 0], tr[:, 1], lw=THIN * 1.4, c=VERM, zorder=6)
-for x in (PIVOT, KX):
-    ex.add_patch(Circle((x, TR_Z), 1.8, fc=PAPER, ec=VERM, lw=THIN, zorder=7))
-ex.add_patch(Rectangle((PIVOT - 10, TR_Z - 40), 20, 37, fc=STEEL, alpha=0.12, ec=STEEL, lw=THIN,
+for x, z in ((PIVOT, TR_Z + RISE), (KX, TR_Z)):
+    ex.add_patch(Circle((x, z), 1.8, fc=PAPER, ec=VERM, lw=THIN, zorder=7))
+ex.add_patch(Rectangle((PIVOT - 10, TR_Z + RISE - 40), 20, 37, fc=STEEL, alpha=0.12, ec=STEEL, lw=THIN,
                        zorder=4))
-ex.plot([PIVOT, PIVOT], [TR_Z - 3, TR_Z], lw=MED, c=STEEL, zorder=5)
+ex.plot([PIVOT, PIVOT], [TR_Z + RISE - 3, TR_Z + RISE], lw=MED, c=STEEL, zorder=5)
 # arms
-for z, h in ((LO_Z, LO_BOW), (UP_Z, UP_BOW)):
-    q = link_pts(z, h)
+for z, name in ((LO_Z, "lower"), (UP_Z, "upper")):
+    q = link_pts(z, name)
     ex.plot(q[:, 0], q[:, 1], lw=MED * 1.8, c=STEEL, solid_capstyle="round",
             solid_joinstyle="round", zorder=5)
-    ex.add_patch(Circle((PIVOT, z), 2.4, fc=PAPER, ec=STEEL, lw=THIN, zorder=7))
+    ex.add_patch(Circle((PIVOT, z + RISE), 2.4, fc=PAPER, ec=STEEL, lw=THIN, zorder=7))
 # spine + central shock tower
-ex.add_patch(Rectangle((0, LO_Z - 8), PIVOT + 14, UP_Z - LO_Z + 16, fc=STEEL, alpha=0.05,
+ex.add_patch(Rectangle((0, BELLY), PIVOT + 14, UP_Z - LO_Z + 16, fc=STEEL, alpha=0.05,
                        ec=STEEL, lw=THIN, ls=(0, (4, 2))))
-ex.add_patch(Rectangle((0, UP_Z + 8), TOWER_X + 4, TOWER_Z - UP_Z, fc=STEEL, alpha=0.05,
+ex.add_patch(Rectangle((0, UP_Z + RISE + 8), TOWER_X + 4, TOWER_Z - UP_Z - RISE, fc=STEEL, alpha=0.05,
                        ec=STEEL, lw=THIN, ls=(0, (4, 2))))
-s0 = np.array([KX - ARM * SHOCK_AT, UP_Z + bow(ARM * SHOCK_AT, UP_BOW)])
+s0 = SHOCK_LO
 s1 = np.array([TOWER_X, TOWER_Z])
 SHOCK_L = np.linalg.norm(s1 - s0)
 u = (s1 - s0) / SHOCK_L; n = np.array([-u[1], u[0]])
@@ -441,11 +455,11 @@ elab(KX + 3, UP_Z - 10, "KNUCKLE PLATE  (in hub, steers)", 150, 150, col=VERM, h
 elab(T_OUT - 4, 110, f"TIRE  {TIRE_D:.0f} × {TIRE_W:.0f}", 184, 132, ha="center")
 elab(TAIL_E + 30, AXLE + 12.5, f"JGA25-370 + ENC  {MOTOR_BODY:.0f}", 98, 140, ha="center")
 elab(60, LO_Z, f"LOWER ARM  {ARM:.0f}", 70, 14, col=STEEL, ha="center")
-elab(KX - 50, UP_Z + UP_BOW, f"UPPER ARM  {ARM:.0f}  (dog-leg +{UP_BOW:.0f})", 98, 122, col=STEEL,
+elab(KX - 60, UP_Z + RISE, f"UPPER ARM  {ARM:.0f}  (boomerang)", 98, 132, col=STEEL,
      ha="center")
-elab(PIVOT + 20, TR_Z + bow(ARM - 20, TR_BOW), f"TIE ROD  (+{TR_BOW:.0f})", -12, 104, col=VERM,
+elab(PIVOT + 20, TR_Z + shape(ARM - 20, "tie rod"), "TIE ROD", -12, 112, col=VERM,
      ha="center")
-elab(PIVOT - 10, TR_Z - 30, "MG996R  (spine)", -4, 20, col=STEEL, ha="center")
+elab(PIVOT - 10, TR_Z + RISE - 30, "MG996R  (spine)", -4, 30, col=STEEL, ha="center")
 elab((s0[0] + s1[0]) / 2 + 6, (s0[1] + s1[1]) / 2, f"SHOCK  {SHOCK_L:.0f}", 70, 160, ha="center")
 
 ex.plot([KX, KX], [-2, -12], lw=HAIR, c=VERM)
@@ -477,7 +491,7 @@ rows = [
     (f"Motor to tie rod / upper / lower, +{BUMP:.0f} −{DROOP:.0f} travel",
      f"{TRAVEL_GAPS['tie rod']:.1f} / {TRAVEL_GAPS['upper arm']:.1f} / "
      f"{TRAVEL_GAPS['lower arm']:.1f} mm"),
-    ("Arms (parallel, equal) / tie rod", f"{ARM:.0f} / {ARM:.0f} mm"),
+    ("Arms = tie rod / inner rise / belly height", f"{ARM:.0f} / {RISE:.0f} / {BELLY:.0f} mm"),
     ("Wheel / motor + enc, measured", f"{TIRE_D:.0f}×{TIRE_W:.0f} / {MOTOR_BODY:.0f} mm"),
 ]
 tb.text(0, 97, "SCHEDULE", fontproperties=LABEL_M, fontsize=7, color=INK, va="top")
