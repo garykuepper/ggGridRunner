@@ -1,8 +1,15 @@
-"""ggGridRunner corner & chassis layout study — plan + front elevation.
+"""ggGridRunner corner & chassis layout study (study 07): plan + front elevation.
 
-Draws the +/-STEER sweep of each tire + motor unit (4WIS, one servo per corner) and
-reports how much the crosswise battery clears the nearest sweep. Parameters are
-design targets from the chassis brainstorm; motor + hex (72 mm) and hex seat (10 mm) are measured.
+Corner with boomerang arms and a chassis servo: the knuckle plate bolts to the gearbox face
+inside the hub pocket. Each arm ends in a single stem hinged (fore-aft pin) to a small kingpin
+block; a vertical kingpin pin joins each block to the knuckle, so there are no ball joints.
+Only the knuckle, motor, wheel and two blocks move with the wheel. The MG996R sits on the spine
+between the arm pivots and steers through a tie rod parallel to the arms (1:1 parallelogram).
+See rover_geometry.py for the numbers and suspension_travel_study.py for the 3D clearance
+check.
+
+Draws the +/-STEER sweep of each corner, solves the spin-in-place angle (the contact point
+swings about the kingpin by the scrub offset), and reports plan clearances.
 
     python simulation/corner_layout_study.py
 """
@@ -12,178 +19,156 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib import font_manager as fm
 from matplotlib.patches import Rectangle, FancyBboxPatch, Circle, Arc, Polygon
-from matplotlib.lines import Line2D
 
-# Optional drafting fonts; falls back to matplotlib defaults when absent.
-FONTS = os.environ.get("GGRUNNER_FONT_DIR", os.path.join(os.path.dirname(__file__), "fonts"))
+from drafting import *  # noqa: E402,F401,F403  fonts, inks, sheet frame
+from rover_geometry import *  # noqa: E402,F401,F403  shared dimensions
 
-
-def font(name, family="sans-serif"):
-    path = os.path.join(FONTS, name)
-    if os.path.exists(path):
-        fm.fontManager.addfont(path)
-        return fm.FontProperties(fname=path)
-    return fm.FontProperties(family=[family])
-
-
-LABEL = font("Jura-Light.ttf")
-LABEL_M = font("Jura-Medium.ttf")
-MONO = font("IBMPlexMono-Regular.ttf", "monospace")
-SERIF = font("InstrumentSerif-Regular.ttf", "serif")
-SERIF_I = font("InstrumentSerif-Italic.ttf", "serif")
-
-PAPER, INK, GREY, STEEL, VERM = "#F3EFE6", "#1E262D", "#8A9199", "#3F6C8C", "#C4452B"
-HAIR, THIN, MED = 0.35, 0.6, 1.1
-
-# ---- parameters (mm) -------------------------------------------------------
-T, WB = 240.0, 240.0            # track, wheelbase (kingpin centres)
-TIRE_D, TIRE_W = 75.0, 30.0
-HEX_SEAT = 10.0                 # outer wheel face -> hex mating face (measured)
-MOTOR_TOTAL, MOTOR_D = 72.0, 25.0  # hex mating face -> encoder back (measured)
-STEER = 50.0                    # mechanical clearance, deg
-BAT_X, BAT_Y, BAT_Z = 144.0, 65.0, 36.0
-RIDE = 30.0
-ENV = 140.0
-
-HEX0 = -TIRE_W / 2 + HEX_SEAT    # hex mating face, from kingpin (tire centre)
-M0 = TIRE_W / 2                  # motor emerges at the tire inner face
-M1 = HEX0 + MOTOR_TOTAL          # encoder back
-MOTOR_L = M1 - M0
+# Drawing coords: X lateral, Y forward (plan reads forward-up).
+TIRE = rect(TIRE_OUT, TIRE_IN, -TIRE_D / 2, TIRE_D / 2)
+HUB = rect(TIRE_IN, POCKET_BOTTOM, -HUB_D / 2, HUB_D / 2)
+MOTOR = rect(TIRE_IN, TAIL_X, -MOTOR_D / 2, MOTOR_D / 2)       # visible part
+MOTOR_HID = rect(0, TIRE_IN, -MOTOR_D / 2, MOTOR_D / 2)
+COUPLER = rect(HEX_X, 0, -6, 6)
+PLATE = rect(-5, 0, -22, 22)                                   # knuckle plate (steers)
+BLOCK_SQ = rect(-BLOCK / 2, BLOCK / 2, -BLOCK / 2, BLOCK / 2)  # kingpin blocks (plan)
+SERVO = rect(*SERVO_BOX[0], *SERVO_BOX[1])                      # MG996R on the spine
 
 
-def unit_polys():
-    """Tire, adapter, motor outlines in kingpin frame, motor toward +x."""
-    tire = np.array([[-15, -37.5], [15, -37.5], [15, 37.5], [-15, 37.5]])
-    adap = np.array([[HEX0, -6], [M0, -6], [M0, 6], [HEX0, 6]])
-    mot = np.array([[M0, -12.5], [M1, -12.5], [M1, 12.5], [M0, 12.5]])
-    return tire, adap, mot
-
-
-def place(poly, kx, ky, ang, mirror):
-    p = poly.copy()
-    if mirror:
-        p[:, 0] *= -1
+def place(poly, kx, ky, ang, mirror_x, mirror_y=False):
+    """Local corner frame -> chassis frame."""
+    p = np.asarray(poly, float).copy()
     a = np.radians(ang)
     r = np.array([[np.cos(a), -np.sin(a)], [np.sin(a), np.cos(a)]])
     p = p @ r.T
+    if mirror_x:
+        p[:, 0] *= -1
+    if mirror_y:
+        p[:, 1] *= -1
     p[:, 0] += kx
     p[:, 1] += ky
     return p
 
 
-def band_half():
-    """Nearest approach of any corner sweep to the chassis x-centreline band."""
-    tire, adap, mot = unit_polys()
-    edge = np.vstack([np.linspace(mot[i], mot[(i + 1) % 4], 60) for i in range(4)])
-    ymin = 1e9
+def spin_angle():
+    """Steer angle at the front-left wheel that rolls it tangent to a spin about the centre."""
+    kx, ky = -KP_X, WB / 2
+    a = np.radians(np.linspace(-STEER, STEER, 40001))
+    cx = kx - SCRUB * np.cos(a)
+    cy = ky - SCRUB * np.sin(a)
+    e = np.abs(cx * -np.sin(a) + cy * np.cos(a)) / np.hypot(cx, cy)
+    i = e.argmin()
+    return abs(np.degrees(a[i])), (cx[i], cy[i])
+
+
+def edge_points(poly, n=80):
+    return np.vstack([np.linspace(poly[i], poly[(i + 1) % 4], n) for i in range(4)])
+
+
+def rect_gap(pts, poly):
+    x0, x1 = poly[:, 0].min(), poly[:, 0].max()
+    y0, y1 = poly[:, 1].min(), poly[:, 1].max()
+    dx = np.maximum(np.maximum(x0 - pts[:, 0], pts[:, 0] - x1), 0)
+    dy = np.maximum(np.maximum(y0 - pts[:, 1], pts[:, 1] - y1), 0)
+    return np.hypot(dx, dy).min()
+
+
+def clearances():
+    tire_mot = np.vstack([edge_points(TIRE), edge_points(MOTOR)])
+    bat, back = 1e9, 1e9
+    bat_poly = rect(-BAT_X / 2, BAT_X / 2, -BAT_Y / 2, BAT_Y / 2)
     for ang in np.linspace(-STEER, STEER, 401):
-        q = place(edge, -T / 2, WB / 2, ang, False)
-        m = np.abs(q[:, 0]) <= BAT_X / 2
-        if m.any():
-            ymin = min(ymin, q[m, 1].min())
-    return ymin
+        q = place(tire_mot, -KP_X, WB / 2, ang, False)
+        bat = min(bat, rect_gap(q, bat_poly))
+        m = place(edge_points(MOTOR), 0, 0, ang, False)   # servo is fixed in this frame
+        back = min(back, rect_gap(m, SERVO))
+    front = np.vstack([place(edge_points(TIRE), -KP_X, WB / 2, a, False)
+                       for a in np.linspace(-STEER, STEER, 81)])
+    return bat, back, 2 * front[:, 1].min()
 
 
-YB = band_half()
-CLEAR = YB - BAT_Y / 2
+SPIN, SPIN_CP = spin_angle()
+CLEAR, BACK_CLEAR, FA_GAP = clearances()
+PIV_GAP = WB / 2 - LO_SPREAD - PIV_BOSS - BAT_Y / 2
+MOD_Y0 = BAT_Y / 2 + 4
 
 fig = plt.figure(figsize=(17, 11), dpi=200, facecolor=PAPER)
-
-# frame
-fr = fig.add_axes([0, 0, 1, 1], facecolor="none")
-fr.set_xlim(0, 17); fr.set_ylim(0, 11); fr.axis("off")
-fr.add_patch(Rectangle((0.45, 0.45), 16.1, 10.1, fill=False, lw=THIN, ec=INK))
-fr.add_patch(Rectangle((0.53, 0.53), 15.94, 9.94, fill=False, lw=HAIR, ec=INK))
-for i in range(1, 8):
-    x = 0.45 + i * 16.1 / 8
-    fr.plot([x, x], [0.45, 0.53], lw=HAIR, c=INK); fr.plot([x, x], [10.47, 10.55], lw=HAIR, c=INK)
-    fr.text(x - 16.1 / 16, 0.49, str(i), fontproperties=MONO, fontsize=5, color=GREY,
-            ha="center", va="center")
-for j, ch in enumerate("ABCDE"):
-    y = 0.45 + (j + 0.5) * 10.1 / 5
-    fr.text(0.49, y, ch, fontproperties=MONO, fontsize=5, color=GREY, ha="center", va="center")
+sheet_frame(fig)
 
 # ============================ PLAN VIEW ======================================
 ax = fig.add_axes([0.045, 0.085, 0.53, 0.83], facecolor="none")
 ax.set_aspect("equal"); ax.axis("off")
 ax.set_xlim(-235, 235); ax.set_ylim(-238, 232)
 
-# faint 20 mm dot grid
 gx, gy = np.meshgrid(np.arange(-220, 221, 20), np.arange(-220, 221, 20))
 ax.scatter(gx, gy, s=0.25, c=GREY, alpha=0.45, lw=0)
 
-# spin-in-place circle through the kingpins
-R_spin = np.hypot(T / 2, WB / 2)
+R_spin = np.hypot(*SPIN_CP)
 ax.add_patch(Circle((0, 0), R_spin, fill=False, lw=HAIR, ec=GREY, ls=(0, (8, 3, 1, 3))))
-
-# centrelines
 for a in ([-225, 225], [0, 0]), ([0, 0], [-225, 225]):
     ax.plot(*a, lw=HAIR, c=GREY, ls=(0, (12, 3, 2, 3)))
 
-# rails + modules (upper level, steel)
+# spines, rails, cradles
+MOD_L = WB / 2 + 50 - MOD_Y0
+for yc in (MOD_Y0 + MOD_L / 2, -(MOD_Y0 + MOD_L / 2)):
+    ax.add_patch(Rectangle((-ENV / 2, yc - MOD_L / 2), ENV, MOD_L, fc=STEEL, alpha=0.05,
+                           ec="none"))
+    ax.add_patch(Rectangle((-ENV / 2, yc - MOD_L / 2), ENV, MOD_L, fc="none", ec=STEEL, lw=THIN,
+                           ls=(0, (4, 2))))
 for sx in (-1, 1):
     ax.add_patch(Rectangle((sx * 52 - 4, -170), 8, 340, fc="none", ec=STEEL, lw=THIN,
                            ls=(0, (4, 2))))
-for yc, name in ((WB / 2 + 5, "FRONT MODULE"), (-(WB / 2 + 5), "REAR MODULE")):
-    ax.add_patch(Rectangle((-ENV / 2, yc - 55), ENV, 110, fc=STEEL, alpha=0.05, ec="none"))
-    ax.add_patch(Rectangle((-ENV / 2, yc - 55), ENV, 110, fc="none", ec=STEEL, lw=THIN,
-                           ls=(0, (4, 2))))
-for sx in (-1, 1):  # battery side cradles
-    ax.add_patch(Rectangle((sx * 77 - 7, -36), 14, 72, fc="none", ec=STEEL, lw=THIN,
-                           ls=(0, (4, 2))))
+    ax.add_patch(Rectangle((sx * (BAT_X / 2 + 8) - 7, -BAT_Y / 2 + 4), 14, BAT_Y - 8,
+                           fc="none", ec=STEEL, lw=THIN, ls=(0, (4, 2))))
 
-# upper A-arms (plan)
-for sx in (-1, 1):
-    for sy in (-1, 1):
-        kx, ky = sx * T / 2, sy * WB / 2
-        for (px, dy) in ((60, 22), (65, 14)):
-            for d in (-1, 1):
-                ax.plot([kx - sx * 14, sx * px], [ky, ky + d * dy], lw=THIN, c=STEEL)
-            ax.add_patch(Circle((sx * px, ky + dy), 2.2, fc=PAPER, ec=STEEL, lw=THIN))
-            ax.add_patch(Circle((sx * px, ky - dy), 2.2, fc=PAPER, ec=STEEL, lw=THIN))
-
-# battery (wheel level)
+# battery
 bx0, by0 = -BAT_X / 2, -BAT_Y / 2
 ax.add_patch(Rectangle((bx0, by0), BAT_X, BAT_Y, fc=INK, alpha=0.06, ec="none"))
 for i in range(8):
-    ax.add_patch(Rectangle((bx0 + i * 18 + 0.8, by0 + 0.8), 16.4, BAT_Y - 1.6,
+    ax.add_patch(Rectangle((bx0 + 0.8, by0 + i * 18 + 0.8), BAT_X - 1.6, 16.4,
                            fc="none", ec=INK, lw=HAIR))
 ax.add_patch(Rectangle((bx0, by0), BAT_X, BAT_Y, fc="none", ec=INK, lw=MED))
 
-# corner sweeps
-tire, adap, mot = unit_polys()
 for sx in (-1, 1):
     for sy in (-1, 1):
-        kx, ky, mir = sx * T / 2, sy * WB / 2, sx > 0
+        kx, ky, mx, my = sx * KP_X, sy * WB / 2, sx > 0, sy < 0
+        P = lambda poly, ang=0.0: place(poly, kx, ky, ang, mx, my)
+        # arms: single stem from the kingpin block, then two legs to the chassis pivots
+        for spread, lw in ((LO_SPREAD, MED), (UP_SPREAD, THIN)):
+            for d in (-1, 1):
+                seg = P([[0, 0], [STEM, 0], [ARM, d * spread]])
+                ax.plot(seg[:, 0], seg[:, 1], lw=lw, c=STEEL)
+                ax.add_patch(Circle(seg[2], 2.2, fc=PAPER, ec=STEEL, lw=THIN, zorder=5))
+        # sweeps
         for ang in np.arange(-STEER, STEER + 0.01, 2.5):
-            for p in (tire, mot):
-                ax.add_patch(Polygon(place(p, kx, ky, ang, mir), closed=True, fill=False,
-                                     ec=VERM, lw=0.22, alpha=0.55))
+            for p in (TIRE, MOTOR):
+                ax.add_patch(Polygon(P(p, ang), closed=True, fill=False, ec=VERM, lw=0.22,
+                                     alpha=0.55))
         for ang in (-STEER, STEER):
-            for p in (tire, mot):
-                ax.add_patch(Polygon(place(p, kx, ky, ang, mir), closed=True, fill=False,
-                                     ec=VERM, lw=THIN))
-        ax.add_patch(Polygon(place(tire, kx, ky, 0, mir), fc=INK, ec=INK, lw=THIN))
-        ax.add_patch(Polygon(place(adap, kx, ky, 0, mir), fc=PAPER, ec=INK, lw=THIN))
-        ax.add_patch(Polygon(place(mot, kx, ky, 0, mir), fc=PAPER, ec=INK, lw=MED))
-        enc = np.array([[M1 - 14, -12.5], [M1, -12.5], [M1, 12.5], [M1 - 14, 12.5]])
-        ax.add_patch(Polygon(place(enc, kx, ky, 0, mir), fc=INK, alpha=0.18, ec="none"))
-        # kingpin
-        ax.add_patch(Circle((kx, ky), 5, fc=PAPER, ec=INK, lw=THIN, zorder=6))
-        ax.plot([kx - 9, kx + 9], [ky, ky], lw=HAIR, c=INK, zorder=7)
-        ax.plot([kx, kx], [ky - 9, ky + 9], lw=HAIR, c=INK, zorder=7)
-        # spin tangent direction
-        tang = np.array([-ky, kx]) / R_spin
-        ax.annotate("", xy=(kx + tang[0] * 30, ky + tang[1] * 30), xytext=(kx, ky),
-                    arrowprops=dict(arrowstyle="-|>", lw=THIN, color=INK, mutation_scale=7),
-                    zorder=8)
+            for p in (TIRE, MOTOR):
+                ax.add_patch(Polygon(P(p, ang), closed=True, fill=False, ec=VERM, lw=THIN))
+        # straight-ahead parts
+        ax.add_patch(Polygon(P(TIRE), fc=INK, ec=INK, lw=THIN))
+        for p in (HUB, MOTOR_HID, COUPLER):
+            ax.add_patch(Polygon(P(p), fc="none", ec=PAPER, lw=HAIR, ls=(0, (2, 1.5))))
+        ax.add_patch(Polygon(P(PLATE), fc=VERM, alpha=0.5, ec=VERM, lw=THIN, zorder=4))
+        ax.add_patch(Polygon(P(MOTOR), fc=PAPER, ec=INK, lw=MED))
+        # kingpin block, servo on the spine
+        ax.add_patch(Polygon(P(BLOCK_SQ), fc=STEEL, alpha=0.55, ec=STEEL, lw=THIN, zorder=6))
+        ax.add_patch(Polygon(P(SERVO), fc=STEEL, alpha=0.12, ec=STEEL, lw=THIN, zorder=3))
+        # steering: knuckle arm -> tie rod -> horn
+        link = P([[0, 0], [0, STEER_ARM], [ARM, STEER_ARM], [ARM, 0]])
+        ax.plot(link[:, 0], link[:, 1], lw=THIN, c=VERM, zorder=7)
+        for q in link[1:3]:
+            ax.add_patch(Circle(q, 1.8, fc=PAPER, ec=VERM, lw=THIN, zorder=8))
+        ax.add_patch(Circle(link[3], 2.6, fc=PAPER, ec=STEEL, lw=THIN, zorder=8))
+        ax.add_patch(Circle((kx, ky), 3.5, fc=PAPER, ec=INK, lw=THIN, zorder=9))
+        ax.plot([kx - 7, kx + 7], [ky, ky], lw=HAIR, c=INK, zorder=10)
+        ax.plot([kx, kx], [ky - 7, ky + 7], lw=HAIR, c=INK, zorder=10)
 
-# spin angle arc at FR
-ax.add_patch(Arc((T / 2, WB / 2), 58, 58, theta1=90, theta2=135, lw=THIN, ec=INK))
-ax.text(T / 2 - 20, WB / 2 + 36, f"{np.degrees(np.arctan(WB / T)):.1f}°",
-        fontproperties=MONO, fontsize=6.5, color=INK, ha="center")
+ax.add_patch(Arc((KP_X, WB / 2), 50, 50, theta1=90, theta2=90 + SPIN, lw=THIN, ec=INK, zorder=9))
+ax.text(KP_X - 16, WB / 2 + 36, f"{SPIN:.1f}°", fontproperties=MONO, fontsize=6.5, color=INK,
+        ha="center", bbox=dict(fc=PAPER, ec="none", pad=0.6))
 
 
 def dim(a, p0, p1, off, text, horiz=True, col=INK):
@@ -205,186 +190,187 @@ def dim(a, p0, p1, off, text, horiz=True, col=INK):
                ha="right", va="center", rotation=90, bbox=dict(fc=PAPER, ec="none", pad=0.6))
 
 
-dim(ax, -T / 2, T / 2, 218, f"TRACK {T:.0f}")
-dim(ax, -WB / 2, WB / 2, -212, f"WHEELBASE {WB:.0f}", horiz=False)
+dim(ax, -T / 2, T / 2, 222, f"TRACK {T:.0f}  (tire c-c)")
+dim(ax, -KP_X, KP_X, -222, f"KINGPIN C-C {2 * KP_X:.0f}")
+dim(ax, -WB / 2, WB / 2, -226, f"WHEELBASE {WB:.0f}", horiz=False)
 dim(ax, -ENV / 2, ENV / 2, -200, f"≤ {ENV:.0f} PRINT ENVELOPE", col=STEEL)
 
-# battery clearance callout
-cx = -30
-ax.plot([cx, cx], [BAT_Y / 2, YB], lw=MED, c=VERM)
-ax.plot([cx - 5, cx + 5], [YB, YB], lw=THIN, c=VERM)
-ax.text(cx + 7, YB + 4, f"{CLEAR:.1f} mm", fontproperties=MONO, fontsize=7, color=VERM,
-        ha="left", va="bottom", bbox=dict(fc=PAPER, ec="none", pad=0.6))
+ax.text(-100, 14, f"battery to sweep  {CLEAR:.1f} mm\nbattery to arm pivot  {PIV_GAP:.1f} mm\n"
+        f"motor tail to servo  {BACK_CLEAR:.1f} mm",
+        fontproperties=MONO, fontsize=6.5, color=VERM, ha="center", va="top", linespacing=1.6,
+        bbox=dict(fc=PAPER, ec="none", pad=0.6))
 
-# plan labels
-def lab(a, x, y, s, col=INK, ha="center", size=6.2, fp=LABEL_M):
-    a.text(x, y, s, fontproperties=fp, fontsize=size, color=col, ha=ha, va="center",
+
+def lab(a, x, y, s, col=INK, ha="center", size=6.2, fp=LABEL_M, rot=0):
+    a.text(x, y, s, fontproperties=fp, fontsize=size, color=col, ha=ha, va="center", rotation=rot,
            bbox=dict(fc=PAPER, ec="none", pad=0.8, alpha=0.92))
 
-lab(ax, 0, 0, "BATTERY  4S4P  144 × 65 × 36", size=6.4)
-lab(ax, 0, WB / 2 + 45, "FRONT MODULE", col=STEEL)
-lab(ax, 0, -(WB / 2 + 45), "REAR MODULE", col=STEEL)
-lab(ax, 0, WB / 2 + 70, "FORWARD  +Y", col=GREY, size=5.8)
-lab(ax, 52, 52, "RAIL", col=STEEL, size=5.6)
-lab(ax, 77, -44, "CRADLE", col=STEEL, size=5.6)
-lab(ax, -77, -44, "CRADLE", col=STEEL, size=5.6)
-ax.text(-R_spin, -40, "SPIN-IN-PLACE CIRCLE", fontproperties=LABEL_M, fontsize=5.6, color=GREY,
-        ha="center", va="center", rotation=90, bbox=dict(fc=PAPER, ec="none", pad=0.8))
-lab(ax, -150, 52, f"±{STEER:.0f}° SWEEP", col=VERM, size=5.8)
 
-ax.text(-232, 226, "PLAN", fontproperties=SERIF, fontsize=17, color=INK, va="top")
-ax.text(-232, 208, "view from above  ·  true proportion  ·  mm", fontproperties=LABEL, fontsize=6.5,
-        color=GREY, va="top")
+lab(ax, 0, 0, "BATTERY  4S4P  144 × 65 × 36", size=6.4, rot=90)
+lab(ax, 0, WB / 2 + 40, "FRONT SPINE", col=STEEL)
+lab(ax, 0, -(WB / 2 + 40), "REAR SPINE", col=STEEL)
+lab(ax, 52, 60, "RAIL", col=STEEL, size=5.6)
+lab(ax, BAT_X / 2 + 8, -BAT_Y / 2 - 6, "CRADLE", col=STEEL, size=5.6)
+lab(ax, -BAT_X / 2 - 8, -BAT_Y / 2 - 6, "CRADLE", col=STEEL, size=5.6)
+lab(ax, -PIVOT + 20, WB / 2 - 34, "MG996R", col=STEEL, size=5.6)
+lab(ax, -KP_X + ARM / 2, WB / 2 + STEER_ARM + 9, "TIE ROD", col=VERM, size=5.6)
+ax.text(-R_spin - 3, 0, "SPIN-IN-PLACE CIRCLE", fontproperties=LABEL_M, fontsize=5.6,
+        color=GREY, ha="center", va="center", rotation=90, bbox=dict(fc=PAPER, ec="none", pad=0.8))
+lab(ax, -150, 40, f"±{STEER:.0f}° SWEEP", col=VERM, size=5.8)
+
+ax.text(0.005, 0.995, "PLAN", fontproperties=SERIF, fontsize=17, color=INK, va="top",
+        transform=ax.transAxes)
+ax.text(0.005, 0.955, "view from above  ·  true proportion  ·  mm  ·  forward up the page  ·  "
+        "+X forward  ·  +Y left  ·  +Z up", fontproperties=LABEL, fontsize=6.5, color=GREY,
+        va="top", transform=ax.transAxes)
 
 # ============================ FRONT ELEVATION ================================
 ex = fig.add_axes([0.6, 0.43, 0.37, 0.49], facecolor="none")
 ex.set_aspect("equal"); ex.axis("off")
-ex.set_xlim(-62, 176); ex.set_ylim(-26, 205)
+ex.set_xlim(-30, 208); ex.set_ylim(-26, 205)
 
-KX = T / 2
-AXLE = TIRE_D / 2
-# level bands
-ex.add_patch(Rectangle((-60, 0), 220, 80, fc=VERM, alpha=0.035, ec="none"))
-ex.plot([-60, 160], [80, 80], lw=HAIR, c=VERM, ls=(0, (3, 2)))
-ex.text(-60, 76, "WHEEL LEVEL · KEEP-OUT", fontproperties=LABEL_M, fontsize=5.4, color=VERM,
-        ha="left", va="top")
-ex.text(-60, 84, "SUSPENSION LEVEL", fontproperties=LABEL_M, fontsize=5.4, color=STEEL,
-        ha="left", va="bottom")
-# ground
-ex.plot([-60, 160], [0, 0], lw=MED, c=INK)
-for x in np.arange(-56, 161, 5):
+KX = KP_X
+T_IN, T_OUT = KX - TIRE_IN, KX - TIRE_OUT
+TC = (T_IN + T_OUT) / 2
+TAIL_E = KX - TAIL_X
+PX = PIVOT                          # chassis pivots
+
+ex.plot([-28, 206], [0, 0], lw=MED, c=INK)
+for x in np.arange(-24, 207, 5):
     ex.plot([x, x - 4], [0, -4], lw=HAIR, c=INK)
-# centreline & kingpin axis
-ex.plot([0, 0], [-10, 196], lw=HAIR, c=GREY, ls=(0, (12, 3, 2, 3)))
-ex.plot([KX, KX], [-10, 196], lw=HAIR, c=INK, ls=(0, (12, 3, 2, 3)))
-ex.text(KX + 2, 198, "KINGPIN AXIS", fontproperties=LABEL, fontsize=5.4, color=INK, ha="left")
-ex.text(1.5, 198, "CL  CHASSIS", fontproperties=LABEL, fontsize=5.4, color=GREY, ha="left")
+ex.plot([0, 0], [-10, 180], lw=HAIR, c=GREY, ls=(0, (12, 3, 2, 3)))
+ex.plot([KX, KX], [-10, 180], lw=HAIR, c=INK, ls=(0, (12, 3, 2, 3)))
+ex.text(KX + 2, 182, "KINGPIN AXIS", fontproperties=LABEL, fontsize=5.4, color=INK, ha="left")
+ex.text(16, 172, "CL  CHASSIS", fontproperties=LABEL, fontsize=5.4, color=GREY, ha="left")
 
-# battery behind (dashed)
-ex.add_patch(Rectangle((0, RIDE), BAT_X / 2, BAT_Z, fc=INK, alpha=0.05, ec=INK, lw=THIN,
+ex.add_patch(Rectangle((0, BELLY), BAT_X / 2, BAT_Z, fc=INK, alpha=0.05, ec=INK, lw=THIN,
                        ls=(0, (3, 2))))
-ex.text(3, RIDE + BAT_Z - 3, "BATTERY  (behind)", fontproperties=LABEL, fontsize=5.2,
-        color=INK, ha="left", va="top")
 
-# travel ghosts
-for dz in (-12.5, 12.5):
-    ex.add_patch(FancyBboxPatch((KX - 15, dz + 0.5), 30, TIRE_D - 1,
-                                boxstyle="round,pad=0,rounding_size=6", fc="none",
+# tire + travel ghosts
+for dz in (-DROOP, BUMP):
+    ex.add_patch(FancyBboxPatch((T_IN, dz + 0.5), TIRE_W, TIRE_D - 1,
+                                boxstyle="round,pad=0,rounding_size=8", fc="none",
                                 ec=GREY, lw=HAIR, ls=(0, (2, 2))))
-# tire
-ex.add_patch(FancyBboxPatch((KX - 15, 0), 30, TIRE_D, boxstyle="round,pad=0,rounding_size=6",
+ex.add_patch(FancyBboxPatch((T_IN, 0), TIRE_W, TIRE_D, boxstyle="round,pad=0,rounding_size=8",
                             fc=INK, ec=INK, lw=THIN))
-for z in np.arange(6, TIRE_D - 4, 5):
-    ex.plot([KX - 15, KX + 15], [z, z], lw=HAIR, c=PAPER, alpha=0.35)
-# adapter + motor
-ex.add_patch(Rectangle((KX - M0, AXLE - 6), M0 - HEX0, 12, fc=PAPER, ec=INK, lw=THIN,
-                       ls=(0, (2, 1.5)), zorder=3))
-ex.add_patch(Rectangle((KX - M1, AXLE - 12.5), MOTOR_L, MOTOR_D, fc=PAPER, ec=INK, lw=MED))
-ex.add_patch(Rectangle((KX - M1, AXLE - 12.5), 14, MOTOR_D, fc=INK, alpha=0.18, ec="none"))
-ex.plot([KX - M0 - 21, KX - M0 - 21], [AXLE - 12.5, AXLE + 12.5], lw=HAIR, c=INK)
-# yoke (rotates with wheel)
-yoke = np.array([[KX - 62, AXLE - 16], [KX - 44, AXLE - 16], [KX - 44, 80], [KX + 6, 80],
-                 [KX + 6, 88], [KX - 52, 88], [KX - 52, AXLE + 16], [KX - 62, AXLE + 16]])
-ex.add_patch(Polygon(yoke, closed=True, fc=VERM, alpha=0.12, ec=VERM, lw=THIN))
-# upright + servo + bearing
-UP0, UP1 = 90, 144
-ex.add_patch(Rectangle((KX - 16, UP0), 32, UP1 - UP0, fc=STEEL, alpha=0.08, ec=STEEL, lw=MED))
-ex.add_patch(Rectangle((KX - 10, 102), 20, 38, fc=PAPER, ec=INK, lw=THIN))
-ex.add_patch(Rectangle((KX - 7, UP0 + 1.5), 14, 7, fc=INK, alpha=0.25, ec=INK, lw=HAIR))
-ex.plot([KX, KX], [88, 102], lw=MED * 1.4, c=INK, solid_capstyle="butt")
-# arms
-LA_Z, UA_Z = 98, 136
-for (px, z) in ((60, LA_Z), (65, UA_Z)):
-    ex.plot([px, KX - 16], [z, z], lw=MED * 1.6, c=STEEL, solid_capstyle="round")
-    for x in (px, KX - 16):
-        ex.add_patch(Circle((x, z), 2.4, fc=PAPER, ec=STEEL, lw=THIN, zorder=5))
-# chassis module wall + shock tower
-ex.add_patch(Rectangle((0, 90), 66, 56, fc=STEEL, alpha=0.05, ec=STEEL, lw=THIN,
-                       ls=(0, (4, 2))))
-tower = np.array([[30, 146], [44, 146], [44, 184], [30, 184]])
-ex.add_patch(Polygon(tower, closed=True, fc=STEEL, alpha=0.05, ec=STEEL, lw=THIN,
-                     ls=(0, (4, 2))))
-s0, s1 = np.array([96.0, LA_Z]), np.array([38.0, 178.0])
-u = (s1 - s0) / np.linalg.norm(s1 - s0); n = np.array([-u[1], u[0]])
-body0, body1 = s0 + u * 12, s0 + u * 62
+for z in np.arange(8, TIRE_D - 6, 6):
+    ex.plot([T_IN, T_OUT], [z, z], lw=HAIR, c=PAPER, alpha=0.25)
+ex.add_patch(Rectangle((T_IN, AXLE - HUB_D / 2), HEX_IN, HUB_D, fc=PAPER, ec=INK, lw=THIN,
+                       ls=(0, (2, 1.5)), zorder=2))
+ex.add_patch(Rectangle((KX, AXLE - 6), GBX_FACE, 12, fc=PAPER, ec=INK, lw=THIN, zorder=3))
+# motor
+ex.add_patch(Rectangle((TAIL_E, AXLE - MOTOR_D / 2), TAIL_X, MOTOR_D, fc=PAPER, ec=INK, lw=MED,
+                       zorder=3))
+ex.add_patch(Rectangle((TAIL_E, AXLE - MOTOR_D / 2), 10, MOTOR_D, fc=INK, alpha=0.18, ec="none",
+                       zorder=3))
+# knuckle plate (steers) + kingpin blocks (ride with the wheel, do not steer)
+ex.add_patch(Polygon([[KX, KP_LO_Z + 5], [KX + 5, KP_LO_Z + 5], [KX + 5, KP_UP_Z - 5],
+                      [KX, KP_UP_Z - 5]], closed=True, fc=VERM, alpha=0.3, ec=VERM, lw=THIN,
+                     zorder=4))
+for z in (KP_LO_Z, KP_UP_Z):
+    ex.add_patch(Rectangle((KX - BLOCK / 2, z - BLOCK / 2), BLOCK, BLOCK, fc=STEEL, alpha=0.5,
+                           ec=STEEL, lw=THIN, zorder=6))
+    ex.add_patch(Circle((KX, z), 1.8, fc=PAPER, ec=INK, lw=THIN, zorder=7))
+# boomerang arms and tie rod, all rising RISE to the chassis
+for z0, name in ((KP_LO_Z, "lower"), (KP_UP_Z, "upper")):
+    a_, h_ = map(np.asarray, SHAPES[name])
+    ex.plot(KX - a_, z0 + h_, lw=MED * 1.8, c=STEEL, solid_capstyle="round",
+            solid_joinstyle="round", zorder=5)
+    ex.add_patch(Circle((PX, z0 + RISE), 2.4, fc=PAPER, ec=STEEL, lw=THIN, zorder=7))
+ex.plot([KX, PX], [TR_Z, HORN_Z], lw=THIN * 1.4, c=VERM, zorder=6)
+for x, z in ((KX, TR_Z), (PX, HORN_Z)):
+    ex.add_patch(Circle((x, z), 1.8, fc=PAPER, ec=VERM, lw=THIN, zorder=7))
+# servo on the spine, horn on a standoff
+(sa0, sa1), _, (sz0, sz1) = SERVO_BOX
+ex.add_patch(Rectangle((KX - sa1, sz0), sa1 - sa0, sz1 - sz0, fc=STEEL, alpha=0.14, ec=STEEL,
+                       lw=THIN, zorder=4))
+ex.plot([PX, PX], [sz1, HORN_Z], lw=MED, c=INK, zorder=5)
+# spine + shock tower
+ex.add_patch(Rectangle((0, BELLY), PX + 12, KP_UP_Z - KP_LO_Z + 16, fc=STEEL, alpha=0.05,
+                       ec=STEEL, lw=THIN, ls=(0, (4, 2))))
+ex.add_patch(Rectangle((0, KP_UP_Z + RISE + 8), TOWER_X + 4, SHOCK_TOP_Z - KP_UP_Z - RISE,
+                       fc=STEEL, alpha=0.05, ec=STEEL, lw=THIN, ls=(0, (4, 2))))
+s0 = SHOCK_LO
+s1 = np.array([TOWER_X, SHOCK_TOP_Z])
+u = (s1 - s0) / SHOCK_LEN; n = np.array([-u[1], u[0]])
+body0, body1 = s0 + u * 12, s0 + u * (SHOCK_LEN * 0.62)
+ex.plot([s0[0], s0[0]], [s0[1] - SHOCK_EYE_UP, s0[1]], lw=MED, c=STEEL, zorder=5)
 ex.plot(*zip(s0, s1), lw=THIN, c=INK)
-ex.add_patch(Polygon([body0 + n * 5, body1 + n * 5, body1 - n * 5, body0 - n * 5], fc=PAPER,
-                     ec=INK, lw=THIN, zorder=4))
+ex.add_patch(Polygon([body0 + n * SHOCK_R, body1 + n * SHOCK_R, body1 - n * SHOCK_R,
+                      body0 - n * SHOCK_R], fc=PAPER, ec=INK, lw=THIN, zorder=6))
 for k in np.linspace(0.12, 0.9, 11):
-    p = body0 + (body1 - body0) * k
-    ex.plot(*zip(p + n * 5, p - n * 5), lw=HAIR, c=INK, zorder=5)
-for p in (s0, s1):
-    ex.add_patch(Circle(p, 2.4, fc=PAPER, ec=INK, lw=THIN, zorder=6))
+    p_ = body0 + (body1 - body0) * k
+    ex.plot(*zip(p_ + n * SHOCK_R, p_ - n * SHOCK_R), lw=HAIR, c=INK, zorder=7)
+for p_ in (s0, s1):
+    ex.add_patch(Circle(p_, 2.4, fc=PAPER, ec=INK, lw=THIN, zorder=8))
 
 
-def elab(x, y, s, tx, ty, col=INK, ha="left"):
+def elab(x, y, s, tx, ty, col=INK, ha="center"):
     ex.annotate(s, xy=(x, y), xytext=(tx, ty), fontproperties=LABEL_M, fontsize=5.6, color=col,
                 ha=ha, va="center",
                 arrowprops=dict(arrowstyle="-", lw=HAIR, color=col, shrinkA=1, shrinkB=0),
                 bbox=dict(fc=PAPER, ec="none", pad=0.6))
 
 
-elab(KX + 10, 120, "MG996R  (in upright)", 142, 170)
-elab(KX + 7, UP0 + 5, "BEARING  (takes load)", 142, 106)
-elab(KX + 6, 84, "YOKE  (steers)", 142, 88, col=VERM)
-elab(KX + 15, 55, "TIRE  75 × 30", 142, 60)
-elab(KX - 60, AXLE - 12.5, f"JGA25-370 + HEX  {MOTOR_TOTAL:.0f}", 60, -16)
-elab(90, LA_Z, "LOWER ARM", 90, 72, col=STEEL, ha="center")
-elab(88, UA_Z, "UPPER ARM", 86, 158, col=STEEL, ha="center")
-elab(72, 131, "SHOCK", 12, 160, col=INK, ha="center")
+elab(KX + 3, KP_LO_Z + 12, "KNUCKLE PLATE  (steers)", 176, 26, col=VERM)
+elab(T_OUT - 4, 110, f"TIRE  {TIRE_D:.0f} × {TIRE_W:.0f}", 190, 136)
+elab(KX - BLOCK / 2, KP_UP_Z + 3, "KINGPIN BLOCKS", 150, 160, col=STEEL)
+elab(KX - sa1 + 8, sz0 + 6, "MG996R  (spine)", 30, 22, col=STEEL)
+elab(KX - 60, TR_Z + RISE * 60 / ARM, "TIE ROD  1:1", 104, 118, col=VERM)
+elab(TAIL_E + 30, AXLE - MOTOR_D / 2, f"JGA25-370 + ENC  {MOTOR_BODY:.0f}", 84, 30)
+elab(KX - 86, KP_UP_Z + RISE, f"UPPER ARM  {ARM:.0f}  (boomerang)", 58, 150, col=STEEL)
+elab(KX - 40, KP_LO_Z, f"LOWER ARM  {ARM:.0f}  (boomerang)", 110, 10, col=STEEL)
+elab((s0[0] + s1[0]) / 2 - 4, (s0[1] + s1[1]) / 2, f"SHOCK  {SHOCK_LEN:.0f}", 70, 178)
 
-# heights
-for z, t in ((AXLE, f"{AXLE:.1f}"), (80, "80"), (UP1, f"{UP1:.0f}")):
-    ex.plot([160, 166], [z, z], lw=HAIR, c=GREY)
-    ex.text(168, z, t, fontproperties=MONO, fontsize=5.4, color=GREY, va="center")
-ex.plot([163, 163], [0, UP1], lw=HAIR, c=GREY)
+ex.plot([KX, KX], [-2, -12], lw=HAIR, c=VERM)
+ex.plot([TC, TC], [-2, -12], lw=HAIR, c=VERM)
+ex.text(TC + 3, -13, f"SCRUB {SCRUB:.0f}", fontproperties=MONO, fontsize=5.4, color=VERM,
+        ha="left", va="top")
 
-ex.text(-60, 204, "ELEVATION", fontproperties=SERIF, fontsize=17, color=INK, va="top",
+for z in (BELLY, AXLE, TIRE_D, SHOCK_TOP_Z):
+    ex.plot([-26, -20], [z, z], lw=HAIR, c=GREY)
+    ex.text(-19, z + 2, f"{z:.0f}", fontproperties=MONO, fontsize=5.4, color=GREY, va="bottom")
+ex.plot([-23, -23], [0, SHOCK_TOP_Z], lw=HAIR, c=GREY)
+
+ex.text(-28, 204, "ELEVATION", fontproperties=SERIF, fontsize=17, color=INK, va="top",
         ha="left")
-ex.text(-60, 190, "front-left corner, looking rearward  ·  mm", fontproperties=LABEL,
-        fontsize=6.5, color=GREY, va="top")
+ex.text(-28, 190, "front-left corner, looking rearward  ·  hub pocket cut open  ·  mm",
+        fontproperties=LABEL, fontsize=6.5, color=GREY, va="top")
 
 # ============================ SCHEDULE + TITLE ===============================
 tb = fig.add_axes([0.6, 0.085, 0.355, 0.31], facecolor="none")
 tb.set_xlim(0, 100); tb.set_ylim(0, 100); tb.axis("off")
 
 rows = [
-    ("Track, kingpin c-c", f"{T:.0f} mm"),
-    ("Wheelbase", f"{WB:.0f} mm"),
-    ("Spin-in-place angle", f"{np.degrees(np.arctan(WB / T)):.1f}°"),
-    ("Steering: commanded / clearance", f"±45° / ±{STEER:.0f}°"),
-    ("Battery clearance to sweep", f"{CLEAR:.1f} mm per side"),
-    ("Hex seat / motor + hex, measured", f"{HEX_SEAT:.0f} / {MOTOR_TOTAL:.0f} mm"),
-    ("Print envelope (Mini, margin)", f"{ENV:.0f} × {ENV:.0f} × 145"),
+    ("Track (tire c-c) / wheelbase", f"{T:.0f} / {WB:.0f} mm"),
+    ("Kingpin c-c / scrub radius", f"{2 * KP_X:.0f} / {SCRUB:.0f} mm"),
+    ("Spin-in-place angle  /  clearance swept", f"{SPIN:.1f}°  /  ±{STEER:.0f}°"),
+    ("Battery to sweep / to arm pivot", f"{CLEAR:.1f} / {PIV_GAP:.1f} mm"),
+    ("Motor tail to servo (swept)", f"{BACK_CLEAR:.1f} mm"),
+    ("Arms = tie rod (boomerang) / rise", f"{ARM:.0f} / {RISE:.0f} mm"),
+    ("Belly height / shock tower top", f"{BELLY:.0f} / {SHOCK_TOP_Z:.0f} mm"),
+    ("Wheel / motor + enc, measured", f"{TIRE_D:.0f}×{TIRE_W:.0f} / {MOTOR_BODY:.0f} mm"),
 ]
 tb.text(0, 97, "SCHEDULE", fontproperties=LABEL_M, fontsize=7, color=INK, va="top")
 tb.plot([0, 100], [91, 91], lw=THIN, c=INK)
 for i, (k, v) in enumerate(rows):
-    y = 85 - i * 7.2
-    warn = "ESTIMATE" in v or "clearance to" in k
+    y = 85 - i * 6.4
+    warn = k.startswith(("Battery", "Motor"))
     tb.text(0, y, k, fontproperties=LABEL, fontsize=7, color=INK, va="center")
     tb.text(100, y, v, fontproperties=MONO, fontsize=6.8, color=VERM if warn else INK,
             ha="right", va="center")
-    tb.plot([0, 100], [y - 3.6, y - 3.6], lw=HAIR, c=GREY, alpha=0.5)
+    tb.plot([0, 100], [y - 3.2, y - 3.2], lw=HAIR, c=GREY, alpha=0.5)
 
-tb.add_patch(Rectangle((0, 0), 100, 26, fill=False, lw=THIN, ec=INK))
-tb.plot([64, 64], [0, 26], lw=HAIR, c=INK)
-tb.text(3, 17.5, "ggGridRunner", fontproperties=SERIF, fontsize=21, color=INK, va="center")
-tb.text(3, 6.5, "corner & chassis layout  —  study 01", fontproperties=SERIF_I, fontsize=10,
-        color=GREY, va="center")
-for k, (a, b) in enumerate((("SHEET", "1 / 1"), ("DATE", "2026-09-24"), ("STATUS", "DRAFT"))):
-    y = 20.5 - k * 7.5
-    tb.text(67, y, a, fontproperties=LABEL, fontsize=5.6, color=GREY, va="center")
-    tb.text(97, y, b, fontproperties=MONO, fontsize=6.2, color=INK, va="center", ha="right")
+title_block(tb, "corner & chassis layout  —  study 07", "2026-09-25")
 
-# legend key
-kx0 = 0
-for j, (col, txt, style) in enumerate(((INK, "wheel level · solid", "-"),
-                                       (VERM, "steering sweep", "-"),
-                                       (STEEL, "suspension level · chassis", "--"))):
-    x = kx0 + j * 34
+for j, (col, txt, style) in enumerate(((INK, "wheel · motor · shock", "-"),
+                                       (VERM, "steers: sweep · knuckle · tie rod", "-"),
+                                       (STEEL, "arms · blocks · spine · servo", "--"))):
+    x = j * 34
     tb.plot([x, x + 6], [33, 33], lw=MED, c=col, ls=style)
     tb.text(x + 8, 33, txt, fontproperties=LABEL, fontsize=5.8, color=INK, va="center")
 
 fig.savefig(os.path.join(os.path.dirname(__file__), "corner_layout_study.png"), facecolor=PAPER)
-print(f"band half {YB:.1f}  clearance {CLEAR:.1f}")
+print(f"T {T:.0f}  kingpin x {KP_X:.0f}  scrub {SCRUB:.1f}  spin {SPIN:.2f}  battery {CLEAR:.1f}  "
+      f"pivot gap {PIV_GAP:.1f}  back {BACK_CLEAR:.1f}  fore-aft {FA_GAP:.1f}  belly {BELLY:.0f}  "
+      f"tower {SHOCK_TOP_Z:.0f}")
