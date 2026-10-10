@@ -21,7 +21,7 @@ Each phase includes a table of tasks organized by firmware target, class, and de
 The phases below are task lists. These milestones are the order they get
 done in, with effort estimates (at ~5 bench hrs/week, no calendar dates).
 Cross-project sequencing and the gate this opens for ggSkybit live in the
-[ggSkyGrid plan](https://github.com/garykuepper/ggSkyGrid/blob/main/PLAN.md).
+[ggSkyGrid plan](https://github.com/garykuepper/ggSkyGrid/blob/main/PLAN.md) (private).
 A milestone is done when its clip exists.
 
 | Order | Milestone | Needs chassis | Effort | Weeks | Done when | Clip | Covers |
