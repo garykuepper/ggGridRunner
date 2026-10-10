@@ -13,6 +13,7 @@ A modular, object-oriented C++ monorepo for a dual-hardware rover system using P
 - [docs/pinouts.md](docs/pinouts.md) — Pin map for both MCUs. Authoritative source for *where* each pin is wired.
 - [docs/roadmap.md](docs/roadmap.md) — Phased task list (Phase 1: hardware validation → Phase 4: autonomy).
 - [CLAUDE.md](CLAUDE.md) — Build commands and code-style rules used by AI tooling and contributors alike.
+- [ggSkyGrid plan](https://github.com/garykuepper/ggSkyGrid/blob/main/PLAN.md) — cross-project priorities. ggGridRunner is the primary project; reaching "Drives on remote" opens the ggSkybit gate.
 
 ## System Architecture
 

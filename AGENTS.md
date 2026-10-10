@@ -10,6 +10,10 @@ The **ggGridRunner** project is a modular, object-oriented C++ monorepo consisti
 - **Controller (`controller-firmware/`)**: Targets an **Arduino Pro Micro (ATmega32U4, 8MHz)**. Interfaces with a PS4 DualShock 4 gamepad (via Hobbytronics USB Host adapter over I2C) and displays real-time telemetry on an SSD1306 OLED dashboard. Sends control commands at 20Hz.
 - **Shared (`shared/`)**: Header-only protocol included by both firmwares via `-I ../shared` in each `platformio.ini`. Defines `ControlPacket` and `TelemetryPacket` structs.
 
+Part of the ggSkyGrid drone projects (ground → one drone → many drones).
+Cross-project priorities and gates live in `~/ggSkyGrid/PLAN.md`: link to
+it, don't copy from it.
+
 ## Architecture & Technology Stack
 
 - **Language**: C++ (Arduino framework)
